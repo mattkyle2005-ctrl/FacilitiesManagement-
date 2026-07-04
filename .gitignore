@@ -1,0 +1,16 @@
+# Secrets — never commit these to a public repo
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+secrets.json
+apikey.txt
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+.vscode/
+.idea/

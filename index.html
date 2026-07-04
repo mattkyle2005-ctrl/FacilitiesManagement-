@@ -1,0 +1,1569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>115 Facilities Monitoring Dashboard — City of Cape Town</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://unpkg.com/qrcode@1.5.3/build/qrcode.min.js"></script>
+<style>
+  :root{
+    --navy:#1A3A5C;
+    --navy-dark:#122843;
+    --gold:#C9A84C;
+    --gold-dark:#B08F35;
+    --slate:#F0F4F8;
+    --white:#FAFBFD;
+    --ink:#1C2733;
+    --muted:#5B6B7A;
+    --good:#2E7D4F;
+    --warn:#B08F35;
+    --bad:#B0413E;
+    --info:#3A6EA5;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--slate);color:var(--ink);}
+  header.app-header{background:linear-gradient(135deg,var(--navy),var(--navy-dark));color:var(--white);padding:18px 20px;position:sticky;top:0;z-index:20;box-shadow:0 2px 8px rgba(0,0,0,0.15);}
+  header.app-header h1{margin:0;font-size:18px;font-weight:700;letter-spacing:0.2px;}
+  header.app-header p{margin:4px 0 0;font-size:12.5px;color:#CBD8E6;}
+  .header-row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+  .gold-badge{background:var(--gold);color:var(--navy-dark);font-weight:700;font-size:11px;padding:4px 10px;border-radius:999px;letter-spacing:0.3px;}
+  .bad-badge{background:var(--bad);color:#fff;font-weight:700;font-size:11px;padding:4px 10px;border-radius:999px;letter-spacing:0.3px;}
+  nav.tabs{display:flex;gap:4px;background:var(--navy-dark);padding:0 12px;overflow-x:auto;position:sticky;top:64px;z-index:19;}
+  nav.tabs button{background:transparent;border:none;color:#B9C7D6;padding:12px 14px;font-size:13.5px;font-weight:600;cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap;}
+  nav.tabs button.active{color:var(--white);border-bottom:3px solid var(--gold);}
+  main{max-width:1180px;margin:0 auto;padding:18px 14px 60px;}
+  .card{background:var(--white);border-radius:12px;padding:18px;box-shadow:0 1px 3px rgba(20,40,60,0.08);margin-bottom:16px;border:1px solid #E2E9F0;}
+  .card h2{margin-top:0;font-size:15px;color:var(--navy);}
+  .grid{display:grid;gap:14px;}
+  .grid.cols-4{grid-template-columns:repeat(4,1fr);}
+  .grid.cols-2{grid-template-columns:repeat(2,1fr);}
+  .grid.qr-grid{grid-template-columns:repeat(auto-fill,minmax(160px,1fr));}
+  @media(max-width:760px){.grid.cols-4{grid-template-columns:repeat(2,1fr);}.grid.cols-2{grid-template-columns:1fr;}}
+  .stat{background:var(--slate);border-radius:10px;padding:12px;text-align:center;border:1px solid #E2E9F0;}
+  .stat.alert{background:#FBEDEC;border-color:#F0C9C6;}
+  .stat .num{font-size:22px;font-weight:800;color:var(--navy);}
+  .stat.alert .num{color:var(--bad);}
+  .stat .lbl{font-size:11.5px;color:var(--muted);margin-top:2px;}
+  .badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;color:#fff;}
+  .badge.Operational{background:var(--good);}
+  .badge.NeedsAttention{background:var(--warn);color:var(--navy-dark);}
+  .badge.UnderRepair{background:var(--info);}
+  .badge.Closed{background:var(--bad);}
+  .badge.overdue{background:var(--bad);}
+  .badge.ok{background:var(--good);}
+  .badge.wo-Reported{background:var(--info);}
+  .badge.wo-Logged{background:var(--muted);}
+  .badge.wo-ContractorAssigned{background:var(--warn);color:var(--navy-dark);}
+  .badge.wo-InProgress{background:var(--warn);color:var(--navy-dark);}
+  .badge.wo-Resolved{background:var(--good);}
+  .badge.wo-Closed{background:var(--good);}
+  .badge.maint-overdue{background:var(--bad);}
+  .badge.maint-soon{background:var(--warn);color:var(--navy-dark);}
+  .badge.maint-ok{background:var(--good);}
+  .sev-High{color:var(--bad);font-weight:700;}
+  .sev-Medium{color:var(--warn);font-weight:700;}
+  .sev-Low{color:var(--good);font-weight:700;}
+  button.btn{background:var(--navy);color:#fff;border:none;padding:9px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;}
+  button.btn:hover{background:var(--navy-dark);}
+  button.btn.gold{background:var(--gold);color:var(--navy-dark);}
+  button.btn.gold:hover{background:var(--gold-dark);}
+  button.btn.ghost{background:transparent;color:var(--navy);border:1px solid #C7D3DE;}
+  button.btn.danger{background:var(--bad);}
+  button.btn.small{padding:5px 10px;font-size:11.5px;}
+  button.btn.big{padding:16px 20px;font-size:15px;width:100%;}
+  button.btn:disabled{opacity:0.5;cursor:not-allowed;}
+  input,select,textarea{font-family:inherit;font-size:13.5px;padding:8px 10px;border-radius:7px;border:1px solid #C7D3DE;width:100%;background:#fff;color:var(--ink);}
+  label{font-size:12px;font-weight:600;color:var(--muted);display:block;margin-bottom:4px;}
+  .field{margin-bottom:10px;}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th{text-align:left;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:0.4px;border-bottom:2px solid #E2E9F0;padding:8px 8px;}
+  td{padding:9px 8px;border-bottom:1px solid #EDF1F5;vertical-align:middle;}
+  tr:hover td{background:#F7FAFC;}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px;}
+  .toolbar input[type=text]{width:220px;}
+  .pill{background:var(--slate);border-radius:999px;padding:6px 12px;font-size:12px;font-weight:600;color:var(--navy);border:1px solid #DCE4EC;}
+  .facility-card{background:#fff;border:1px solid #E2E9F0;border-radius:10px;padding:12px;margin-bottom:10px;}
+  .fc-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;}
+  .fc-name{font-weight:700;font-size:14px;color:var(--navy);}
+  .fc-meta{font-size:11.5px;color:var(--muted);margin-top:2px;}
+  .fc-scores{display:flex;gap:10px;margin-top:8px;flex-wrap:wrap;font-size:11.5px;color:var(--muted);}
+  .fc-actions{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;}
+  .modal-backdrop{position:fixed;inset:0;background:rgba(20,30,45,0.55);display:flex;align-items:flex-start;justify-content:center;padding:30px 14px;overflow-y:auto;z-index:50;}
+  .modal{background:#fff;border-radius:14px;max-width:560px;width:100%;padding:22px;}
+  .modal h3{margin-top:0;color:var(--navy);}
+  .close-x{float:right;cursor:pointer;font-size:18px;color:var(--muted);background:none;border:none;}
+  .small{font-size:11.5px;color:var(--muted);}
+  .flex{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  .footer-note{text-align:center;color:var(--muted);font-size:11.5px;margin-top:24px;}
+  .bar-row{display:grid;grid-template-columns:140px 1fr 60px;gap:10px;align-items:center;margin-bottom:8px;font-size:12.5px;}
+  .bar-track{background:#E9EEF3;border-radius:6px;height:14px;overflow:hidden;position:relative;}
+  .bar-fill{background:var(--info);height:100%;}
+  .bar-fill.overdue{background:var(--bad);}
+  .ai-box{background:#FBF8F0;border:1px solid #EBDDB0;border-radius:8px;padding:12px 14px;margin-top:8px;font-size:13px;color:#5A4A1E;white-space:pre-wrap;}
+  .warn-box{background:#FBEDEC;border:1px solid #F0C9C6;border-radius:8px;padding:12px 14px;margin-top:8px;font-size:12.5px;color:#7A2E2A;}
+  .wo-card{background:#fff;border:1px solid #E2E9F0;border-radius:10px;padding:14px;margin-bottom:12px;}
+  .wo-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap;}
+  .wo-number{font-family:monospace;font-size:12px;color:var(--muted);background:var(--slate);padding:2px 8px;border-radius:6px;}
+  .wo-photo{max-width:120px;max-height:120px;border-radius:8px;border:1px solid #E2E9F0;margin-top:8px;display:block;cursor:pointer;}
+  .wo-tag{background:#EFE9F6;color:#5B4A8A;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;}
+  .activity-list{margin-top:10px;border-top:1px solid #EDF1F5;padding-top:8px;}
+  .activity-item{font-size:11.5px;color:var(--muted);padding:3px 0;}
+  .activity-item b{color:var(--ink);}
+  .maint-row{display:grid;grid-template-columns:1fr 1fr 90px 100px 110px auto;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid #EDF1F5;font-size:12.5px;}
+  @media(max-width:900px){.maint-row{grid-template-columns:1fr;text-align:left;}}
+  .qr-card{background:#fff;border:1px solid #E2E9F0;border-radius:10px;padding:12px;text-align:center;}
+  .qr-card img{width:140px;height:140px;}
+  .qr-card .qname{font-weight:700;font-size:12.5px;color:var(--navy);margin-top:6px;}
+  .quick-view{max-width:480px;margin:40px auto;padding:0 14px;}
+  .quick-view .card{text-align:center;}
+  @media print{
+    header.app-header, nav.tabs, .no-print{display:none !important;}
+    body{background:#fff;}
+    main{max-width:100%;padding:0;}
+    .card{box-shadow:none;border:1px solid #999;}
+    .qr-grid{grid-template-columns:repeat(4,1fr) !important;}
+  }
+  .demo-banner{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:#FBF8F0;border:1px solid #EBDDB0;border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:12.5px;color:#5A4A1E;}
+  .demo-banner button{flex-shrink:0;}
+  .fac-thumb{width:44px;height:44px;border-radius:8px;object-fit:cover;border:1px solid #E2E9F0;cursor:pointer;}
+  .fc-thumb{width:100%;max-height:140px;object-fit:cover;border-radius:8px;border:1px solid #E2E9F0;margin-top:8px;cursor:pointer;}
+  .upload-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;}
+  .mobile-only{display:none;}
+  @media(max-width:760px){
+    .desktop-only{display:none;}
+    .mobile-only{display:block;}
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/plain" id="app-source">
+const { useState, useEffect, useMemo, useRef } = React;
+
+const STORAGE_KEY = "neil_facilities_monitoring_v2";
+const OLD_STORAGE_KEY = "neil_facilities_monitoring_v1";
+const DEFAULT_MODEL = "claude-sonnet-5";
+const DEFAULT_OVERDUE_DAYS = 30;
+const WO_STATUSES = ["Reported", "Logged", "Contractor Assigned", "In Progress", "Resolved", "Closed"];
+const WAITING_ON_OPTIONS = ["", "Water & Sanitation", "Eskom", "SAPS", "Roads Dept", "Other"];
+const CLOSED_STATUSES = ["Resolved", "Closed"];
+const DUPLICATE_THRESHOLD = 0.4;
+
+function uid() {
+  if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
+  return "id-" + Math.random().toString(36).slice(2) + Date.now();
+}
+
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function nowStamp() {
+  return new Date().toISOString();
+}
+
+function daysSince(dateStr) {
+  if (!dateStr) return null;
+  const then = new Date(dateStr + "T00:00:00");
+  if (isNaN(then.getTime())) return null;
+  const diffMs = Date.now() - then.getTime();
+  return Math.floor(diffMs / (1000 * 60 * 60 * 24));
+}
+
+function generateWONumber() {
+  const digits = Math.floor(100000 + Math.random() * 900000);
+  return "TFMS-WO" + digits;
+}
+
+const DEMO_OFFICIALS = ["J. Petersen", "M. Adams", "S. Nkosi", "F. Davids"];
+const DEMO_CONTRACTORS = ["Cape Electrical CC", "BlueDot Plumbing"];
+
+// Example data shown on the very first open so the tool isn't a blank shell.
+// Every seeded facility carries `_demo: true` so it can be cleared in one click
+// without touching anything the user has entered themselves. Dates are computed
+// relative to today so the examples always look current.
+function demoSeed() {
+  function daysAgoStr(n) {
+    const d = new Date();
+    d.setDate(d.getDate() - n);
+    return d.toISOString().slice(0, 10);
+  }
+  function stamp(n) {
+    const d = new Date();
+    d.setDate(d.getDate() - n);
+    return d.toISOString();
+  }
+  return {
+    officials: DEMO_OFFICIALS.slice(),
+    knownContractors: DEMO_CONTRACTORS.slice(),
+    facilities: [
+      {
+        id: uid(), _demo: true, name: "Wynberg Taxi Rank", official: "J. Petersen",
+        status: "Needs Attention", lastInspected: daysAgoStr(41), photo: null,
+        notes: "High foot traffic; roof leak reported in bay 3.",
+        issues: [{
+          id: uid(), woNumber: generateWONumber(),
+          description: "Broken lighting in main shelter — commuters report it's dark at night",
+          severity: "High", status: "In Progress", contractor: "Cape Electrical CC", waitingOn: "Eskom",
+          photo: null, dateReported: daysAgoStr(12), dateResolved: null,
+          activity: [
+            { date: stamp(12), note: "Work order logged (Reported)" },
+            { date: stamp(9), note: "Status changed to Contractor Assigned" },
+            { date: stamp(6), note: "Status changed to In Progress" }
+          ]
+        }],
+        maintenanceTasks: [
+          { id: uid(), name: "Service fire extinguishers", frequencyDays: 180, lastCompleted: daysAgoStr(200) }
+        ]
+      },
+      {
+        id: uid(), _demo: true, name: "Bellville Public Transport Interchange", official: "M. Adams",
+        status: "Operational", lastInspected: daysAgoStr(8), photo: null, notes: "",
+        issues: [],
+        maintenanceTasks: [
+          { id: uid(), name: "Clean stormwater drains", frequencyDays: 90, lastCompleted: daysAgoStr(30) }
+        ]
+      },
+      {
+        id: uid(), _demo: true, name: "Mitchells Plain PTI", official: "S. Nkosi",
+        status: "Under Repair", lastInspected: daysAgoStr(20), photo: null,
+        notes: "Ablution block refurbishment underway.",
+        issues: [{
+          id: uid(), woNumber: generateWONumber(),
+          description: "Blocked toilets in ablution block",
+          severity: "Medium", status: "Contractor Assigned", contractor: "BlueDot Plumbing", waitingOn: "",
+          photo: null, dateReported: daysAgoStr(5), dateResolved: null,
+          activity: [
+            { date: stamp(5), note: "Work order logged (Reported)" },
+            { date: stamp(3), note: "Status changed to Contractor Assigned" }
+          ]
+        }],
+        maintenanceTasks: []
+      },
+      {
+        id: uid(), _demo: true, name: "Khayelitsha Site B Taxi Rank", official: "F. Davids",
+        status: "Operational", lastInspected: daysAgoStr(55), photo: null, notes: "",
+        issues: [], maintenanceTasks: []
+      },
+      {
+        id: uid(), _demo: true, name: "Nyanga Terminus", official: "J. Petersen",
+        status: "Operational", lastInspected: "", photo: null,
+        notes: "Newly added — inspection pending.",
+        issues: [], maintenanceTasks: []
+      }
+    ]
+  };
+}
+
+function loadState() {
+  try {
+    let raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) {
+      // Migrate from the v1 key transparently so an existing returning user doesn't lose data
+      // just because a session added work orders and maintenance tracking.
+      raw = localStorage.getItem(OLD_STORAGE_KEY);
+    }
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch (e) {
+    console.error("Failed to load saved state", e);
+    return null;
+  }
+}
+
+function saveState(state) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch (e) {
+    console.error("Failed to save state", e);
+  }
+}
+
+function parseCSV(text) {
+  const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
+  if (lines.length === 0) return [];
+  const parseLine = (line) => {
+    const out = [];
+    let cur = "";
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') {
+        inQuotes = !inQuotes;
+      } else if (ch === ',' && !inQuotes) {
+        out.push(cur);
+        cur = "";
+      } else {
+        cur += ch;
+      }
+    }
+    out.push(cur);
+    return out.map(s => s.trim());
+  };
+  const header = parseLine(lines[0]).map(h => h.toLowerCase());
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cells = parseLine(lines[i]);
+    const rec = {};
+    header.forEach((h, idx) => { rec[h] = cells[idx] !== undefined ? cells[idx] : ""; });
+    rows.push(rec);
+  }
+  return rows;
+}
+
+function downloadFile(filename, content, mime) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function toCSVValue(v) {
+  if (v === undefined || v === null) return "";
+  const s = String(v);
+  if (s.includes(",") || s.includes('"') || s.includes("\n")) {
+    return '"' + s.replace(/"/g, '""') + '"';
+  }
+  return s;
+}
+
+// Resize an image client-side before storing it as a data URL, so a handful of
+// phone photos per facility doesn't blow past localStorage's ~5-10MB quota.
+function resizeImageFile(file, maxDim, callback) {
+  try {
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) { height = Math.round(height * (maxDim / width)); width = maxDim; }
+          else { width = Math.round(width * (maxDim / height)); height = maxDim; }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, width, height);
+        callback(canvas.toDataURL("image/jpeg", 0.75));
+      };
+      img.onerror = () => callback(null);
+      img.src = evt.target.result;
+    };
+    reader.onerror = () => callback(null);
+    reader.readAsDataURL(file);
+  } catch (e) {
+    callback(null);
+  }
+}
+
+async function callClaude(apiKey, model, prompt) {
+  const resp = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true"
+    },
+    body: JSON.stringify({
+      model: model,
+      max_tokens: 500,
+      messages: [{ role: "user", content: prompt }]
+    })
+  });
+  if (!resp.ok) {
+    const errText = await resp.text();
+    throw new Error("API error " + resp.status + ": " + errText.slice(0, 300));
+  }
+  const data = await resp.json();
+  const text = (data.content && data.content[0] && data.content[0].text) || "";
+  return text;
+}
+
+function computeNextDue(task) {
+  if (!task.lastCompleted) return null;
+  const d = new Date(task.lastCompleted + "T00:00:00");
+  d.setDate(d.getDate() + Number(task.frequencyDays || 0));
+  return d.toISOString().slice(0, 10);
+}
+
+function maintenanceStatus(task) {
+  const nextDue = computeNextDue(task);
+  if (!nextDue) return { label: "Never done", cls: "maint-overdue", overdue: true, daysUntil: -9999 };
+  const daysUntil = Math.floor((new Date(nextDue + "T00:00:00").getTime() - new Date(todayStr() + "T00:00:00").getTime()) / (1000 * 60 * 60 * 24));
+  if (daysUntil < 0) return { label: Math.abs(daysUntil) + "d overdue", cls: "maint-overdue", overdue: true, daysUntil };
+  if (daysUntil <= 14) return { label: "due in " + daysUntil + "d", cls: "maint-soon", overdue: false, daysUntil };
+  return { label: "due in " + daysUntil + "d", cls: "maint-ok", overdue: false, daysUntil };
+}
+
+// --- Duplicate-report detection: crude but effective word-overlap similarity ---
+function wordsOf(s) {
+  return new Set((s || "").toLowerCase().replace(/[^a-z0-9 ]+/g, " ").split(/\s+/).filter(Boolean));
+}
+function similarity(a, b) {
+  const wa = wordsOf(a), wb = wordsOf(b);
+  if (wa.size === 0 || wb.size === 0) return 0;
+  let inter = 0;
+  wa.forEach(w => { if (wb.has(w)) inter++; });
+  const union = new Set([...wa, ...wb]).size;
+  return union === 0 ? 0 : inter / union;
+}
+function findLikelyDuplicate(facility, description) {
+  const openWOs = (facility.issues || []).filter(w => !CLOSED_STATUSES.includes(w.status));
+  let best = null, bestScore = 0;
+  openWOs.forEach(w => {
+    const score = similarity(w.description, description);
+    if (score > bestScore) { bestScore = score; best = w; }
+  });
+  return bestScore >= DUPLICATE_THRESHOLD ? best : null;
+}
+
+// --- WhatsApp quick-log facility guesser: does any known facility name appear in the pasted text? ---
+function guessFacilityFromText(text, facilities) {
+  if (!text) return "";
+  const lower = text.toLowerCase();
+  const match = facilities.find(f => f.name && lower.includes(f.name.toLowerCase()));
+  return match ? match.id : "";
+}
+
+function buildFacilityLink(facilityId) {
+  const base = window.location.href.split("#")[0];
+  return base + "#facility=" + encodeURIComponent(facilityId);
+}
+
+function StatCard({ num, label, alert }) {
+  return (
+    <div className={"stat" + (alert ? " alert" : "")}>
+      <div className="num">{num}</div>
+      <div className="lbl">{label}</div>
+    </div>
+  );
+}
+
+function QRCodeImage({ value, size }) {
+  const [dataUrl, setDataUrl] = useState(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    if (typeof QRCode === "undefined" || !QRCode || !QRCode.toDataURL) {
+      setFailed(true);
+      return;
+    }
+    QRCode.toDataURL(value, { width: size || 140, margin: 1 })
+      .then(url => { if (!cancelled) setDataUrl(url); })
+      .catch(() => { if (!cancelled) setFailed(true); });
+    return () => { cancelled = true; };
+  }, [value]);
+  if (failed) return <div className="small">QR unavailable (no network to load the QR library)</div>;
+  if (!dataUrl) return <div className="small">Generating...</div>;
+  return <img src={dataUrl} alt="QR code" width={size || 140} height={size || 140} />;
+}
+
+function WorkOrderForm({ initial, initialDescription, contractorOptions, onSave, onCancel }) {
+  const [wo, setWo] = useState(initial || {
+    id: uid(), woNumber: generateWONumber(), description: initialDescription || "", severity: "Medium",
+    status: "Reported", contractor: "", waitingOn: "", photo: null,
+    dateReported: todayStr(), dateResolved: null, activity: []
+  });
+  const set = (k, v) => setWo(prev => ({ ...prev, [k]: v }));
+  function handlePhoto(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    resizeImageFile(file, 800, (dataUrl) => { if (dataUrl) set("photo", dataUrl); });
+  }
+  return (
+    <div className="modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}>
+      <div className="modal">
+        <button className="close-x" onClick={onCancel}>✕</button>
+        <h3>{initial ? "Edit Work Order" : "Log a Work Order"}</h3>
+        <div className="field">
+          <label>Work order number</label>
+          <input type="text" value={wo.woNumber} onChange={e => set("woNumber", e.target.value)} placeholder="e.g. TFMS-WO404966" />
+          <p className="small">Auto-suggested — overwrite with the real number once your team's system assigns one.</p>
+        </div>
+        <div className="field">
+          <label>Description</label>
+          <textarea rows="3" value={wo.description} onChange={e => set("description", e.target.value)} placeholder="e.g. Broken lighting in shelter, reported by commuter" />
+        </div>
+        <div className="grid cols-2">
+          <div className="field">
+            <label>Severity</label>
+            <select value={wo.severity} onChange={e => set("severity", e.target.value)}>
+              <option>Low</option><option>Medium</option><option>High</option>
+            </select>
+          </div>
+          <div className="field">
+            <label>Status</label>
+            <select value={wo.status} onChange={e => set("status", e.target.value)}>
+              {WO_STATUSES.map(s => <option key={s}>{s}</option>)}
+            </select>
+          </div>
+          <div className="field">
+            <label>Contractor</label>
+            <input type="text" list="contractor-datalist" value={wo.contractor} onChange={e => set("contractor", e.target.value)} placeholder="e.g. ABC Electrical" />
+            <datalist id="contractor-datalist">
+              {(contractorOptions || []).map(c => <option key={c} value={c} />)}
+            </datalist>
+          </div>
+          <div className="field">
+            <label>Waiting on</label>
+            <select value={wo.waitingOn} onChange={e => set("waitingOn", e.target.value)}>
+              {WAITING_ON_OPTIONS.map(o => <option key={o} value={o}>{o || "Nobody — within our team"}</option>)}
+            </select>
+          </div>
+        </div>
+        <div className="field">
+          <label>Photo</label>
+          <input type="file" accept="image/*" onChange={handlePhoto} />
+          {wo.photo && <img src={wo.photo} alt="attached" className="wo-photo" />}
+        </div>
+        <div className="flex" style={{ justifyContent: "flex-end", marginTop: "10px" }}>
+          <button className="btn ghost" onClick={onCancel}>Cancel</button>
+          <button className="btn gold" disabled={!wo.description.trim()} onClick={() => onSave(wo)}>Save Work Order</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MaintenanceTaskForm({ facilities, onSave, onCancel }) {
+  const [facilityId, setFacilityId] = useState(facilities[0] ? facilities[0].id : "");
+  const [name, setName] = useState("");
+  const [frequencyDays, setFrequencyDays] = useState(90);
+  const [lastCompleted, setLastCompleted] = useState("");
+  return (
+    <div className="modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}>
+      <div className="modal">
+        <button className="close-x" onClick={onCancel}>✕</button>
+        <h3>Add Preventative Maintenance Task</h3>
+        <div className="field">
+          <label>Facility</label>
+          <select value={facilityId} onChange={e => setFacilityId(e.target.value)}>
+            {facilities.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+          </select>
+        </div>
+        <div className="field">
+          <label>Task name</label>
+          <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Service fire extinguishers" />
+        </div>
+        <div className="grid cols-2">
+          <div className="field">
+            <label>Frequency (days)</label>
+            <input type="number" min="1" value={frequencyDays} onChange={e => setFrequencyDays(Number(e.target.value) || 90)} />
+          </div>
+          <div className="field">
+            <label>Last completed (optional)</label>
+            <input type="date" value={lastCompleted} onChange={e => setLastCompleted(e.target.value)} />
+          </div>
+        </div>
+        <div className="flex" style={{ justifyContent: "flex-end", marginTop: "10px" }}>
+          <button className="btn ghost" onClick={onCancel}>Cancel</button>
+          <button className="btn gold" disabled={!name.trim() || !facilityId} onClick={() => onSave(facilityId, {
+            id: uid(), name: name.trim(), frequencyDays, lastCompleted: lastCompleted || null
+          })}>Save Task</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FacilityForm({ initial, officials, onSave, onCancel }) {
+  const [f, setF] = useState(initial || {
+    id: uid(), name: "", official: "", status: "Operational", lastInspected: "", notes: "", photo: null, issues: [], maintenanceTasks: []
+  });
+  const set = (k, v) => setF(prev => ({ ...prev, [k]: v }));
+  function handlePhoto(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    resizeImageFile(file, 800, (dataUrl) => { if (dataUrl) set("photo", dataUrl); });
+  }
+  return (
+    <div className="modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}>
+      <div className="modal">
+        <button className="close-x" onClick={onCancel}>✕</button>
+        <h3>{initial ? "Edit Facility" : "Add Facility"}</h3>
+        <div className="field">
+          <label>Facility name</label>
+          <input type="text" value={f.name} onChange={e => set("name", e.target.value)} placeholder="e.g. Wynberg Taxi Rank" />
+        </div>
+        <div className="field">
+          <label>Assigned monitoring official</label>
+          <select value={f.official} onChange={e => set("official", e.target.value)}>
+            <option value="">Unassigned</option>
+            {officials.map(o => <option key={o} value={o}>{o}</option>)}
+          </select>
+        </div>
+        <div className="grid cols-2">
+          <div className="field">
+            <label>Status</label>
+            <select value={f.status} onChange={e => set("status", e.target.value)}>
+              <option>Operational</option><option>Needs Attention</option><option>Under Repair</option><option>Closed</option>
+            </select>
+          </div>
+          <div className="field">
+            <label>Last inspected</label>
+            <input type="date" value={f.lastInspected || ""} onChange={e => set("lastInspected", e.target.value)} />
+          </div>
+        </div>
+        <div className="field">
+          <label>Notes</label>
+          <textarea rows="3" value={f.notes} onChange={e => set("notes", e.target.value)} placeholder="Any field context worth remembering..." />
+        </div>
+        <div className="field">
+          <label>Photo (optional)</label>
+          <input type="file" accept="image/*" onChange={handlePhoto} />
+          <p className="small">A quick site photo — resized automatically before saving. Take one on a phone or upload from your computer.</p>
+          {f.photo && (
+            <div style={{ marginTop: "6px" }}>
+              <img src={f.photo} alt="facility" className="fc-thumb" />
+              <button className="btn ghost small" style={{ marginTop: "6px" }} onClick={() => set("photo", null)}>Remove photo</button>
+            </div>
+          )}
+        </div>
+        <div className="flex" style={{ justifyContent: "flex-end", marginTop: "10px" }}>
+          <button className="btn ghost" onClick={onCancel}>Cancel</button>
+          <button className="btn gold" disabled={!f.name.trim()} onClick={() => onSave(f)}>Save Facility</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function QuickFacilityView({ facility, onLogInspection, onAddWO, onExit }) {
+  const openCount = (facility.issues || []).filter(w => !CLOSED_STATUSES.includes(w.status)).length;
+  return (
+    <div className="quick-view">
+      <div className="card">
+        <h2 style={{ fontSize: "18px" }}>{facility.name}</h2>
+        {facility.photo && <img src={facility.photo} alt="facility" className="fc-thumb" style={{ maxHeight: "180px" }} />}
+        <p className="small">{facility.official ? "Assigned to " + facility.official : "Unassigned"}</p>
+        <p className="small">
+          {facility.daysSinceInspection === null ? "Never inspected" : facility.daysSinceInspection + " days since last inspection"} · {openCount} open work order{openCount === 1 ? "" : "s"}
+        </p>
+        <div className="field" style={{ marginTop: "16px" }}>
+          <button className="btn gold big" onClick={onLogInspection}>Log Inspection Now</button>
+        </div>
+        <div className="field">
+          <button className="btn big" onClick={onAddWO}>+ New Work Order</button>
+        </div>
+        <button className="btn ghost" onClick={onExit}>Open Full Dashboard</button>
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const saved = loadState();
+  // First-ever open (nothing saved yet): start with example data so the tool isn't
+  // an empty shell. Everything seeded is flagged _demo and clears in one click.
+  const seed = saved || demoSeed();
+  const [facilities, setFacilities] = useState(seed.facilities || []);
+  const [officials, setOfficials] = useState(seed.officials || []);
+  const [knownContractors, setKnownContractors] = useState(seed.knownContractors || []);
+  const [overdueDays, setOverdueDays] = useState(saved && saved.overdueDays !== undefined ? saved.overdueDays : DEFAULT_OVERDUE_DAYS);
+  const [apiKey, setApiKey] = useState(saved && saved.apiKey ? saved.apiKey : "");
+  const [model, setModel] = useState(saved && saved.model ? saved.model : DEFAULT_MODEL);
+  const [briefing, setBriefing] = useState(saved && saved.briefing ? saved.briefing : "");
+  const [briefingAt, setBriefingAt] = useState(saved && saved.briefingAt ? saved.briefingAt : "");
+
+  const [tab, setTab] = useState("dashboard");
+  const [search, setSearch] = useState("");
+  const [filterOfficial, setFilterOfficial] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
+  const [overdueOnly, setOverdueOnly] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [showForm, setShowForm] = useState(false);
+  const [woFor, setWoFor] = useState(null);
+  const [editingWO, setEditingWO] = useState(null);
+  const [woPrefillDescription, setWoPrefillDescription] = useState("");
+  const [showMaintForm, setShowMaintForm] = useState(false);
+  const [newOfficial, setNewOfficial] = useState("");
+  const [newContractor, setNewContractor] = useState("");
+  const [csvText, setCsvText] = useState("");
+  const [quickLogText, setQuickLogText] = useState("");
+  const [quickLogFacilityId, setQuickLogFacilityId] = useState("");
+  const [briefBusy, setBriefBusy] = useState(false);
+  const [lightbox, setLightbox] = useState(null);
+  const [quickFacilityId, setQuickFacilityId] = useState(null);
+  const jsonInputRef = useRef(null);
+  const plannerInputRef = useRef(null);
+  const csvInputRef = useRef(null);
+
+  useEffect(() => {
+    saveState({ facilities, officials, knownContractors, overdueDays, apiKey, model, briefing, briefingAt });
+  }, [facilities, officials, knownContractors, overdueDays, apiKey, model, briefing, briefingAt]);
+
+  // Deep-link support: a QR code (or any bookmarked link) can jump straight to a
+  // single facility's quick-action screen via a #facility=<id> hash fragment.
+  useEffect(() => {
+    function applyHash() {
+      const m = window.location.hash.match(/facility=([^&]+)/);
+      setQuickFacilityId(m ? decodeURIComponent(m[1]) : null);
+    }
+    applyHash();
+    window.addEventListener("hashchange", applyHash);
+    return () => window.removeEventListener("hashchange", applyHash);
+  }, []);
+
+  const enriched = useMemo(() => {
+    return facilities.map(f => {
+      const days = daysSince(f.lastInspected);
+      const overdue = days === null || days > overdueDays;
+      const workOrders = f.issues || [];
+      const openWOs = workOrders.filter(w => !CLOSED_STATUSES.includes(w.status));
+      const maintenanceTasks = f.maintenanceTasks || [];
+      const overdueMaint = maintenanceTasks.filter(t => maintenanceStatus(t).overdue);
+      return { ...f, daysSinceInspection: days, overdue, workOrders, openWOs, openIssueCount: openWOs.length, maintenanceTasks, overdueMaintCount: overdueMaint.length };
+    });
+  }, [facilities, overdueDays]);
+
+  const filtered = useMemo(() => {
+    return enriched.filter(f => {
+      if (search && !f.name.toLowerCase().includes(search.toLowerCase())) return false;
+      if (filterOfficial && f.official !== filterOfficial) return false;
+      if (filterStatus && f.status !== filterStatus) return false;
+      if (overdueOnly && !f.overdue) return false;
+      return true;
+    }).sort((a, b) => (b.overdue === a.overdue ? b.openIssueCount - a.openIssueCount : (b.overdue ? 1 : -1)));
+  }, [enriched, search, filterOfficial, filterStatus, overdueOnly]);
+
+  const summary = useMemo(() => {
+    const overdueCount = enriched.filter(f => f.overdue).length;
+    const needsAttention = enriched.filter(f => f.status !== "Operational").length;
+    const openWOTotal = enriched.reduce((sum, f) => sum + f.openWOs.length, 0);
+    const highSeverityOpen = enriched.reduce((sum, f) => sum + f.openWOs.filter(w => w.severity === "High").length, 0);
+    const maintOverdueTotal = enriched.reduce((sum, f) => sum + f.overdueMaintCount, 0);
+    return { total: enriched.length, overdueCount, needsAttention, openWOTotal, highSeverityOpen, maintOverdueTotal };
+  }, [enriched]);
+
+  const workload = useMemo(() => {
+    const map = {};
+    officials.forEach(o => { map[o] = { total: 0, overdue: 0 }; });
+    enriched.forEach(f => {
+      const key = f.official || "Unassigned";
+      if (!map[key]) map[key] = { total: 0, overdue: 0 };
+      map[key].total += 1;
+      if (f.overdue) map[key].overdue += 1;
+    });
+    return Object.entries(map).sort((a, b) => b[1].total - a[1].total);
+  }, [officials, enriched]);
+
+  const maxWorkload = Math.max(1, ...workload.map(([, v]) => v.total));
+
+  const allMaintenanceTasks = useMemo(() => {
+    return enriched.flatMap(f => (f.maintenanceTasks || []).map(t => ({ ...t, facilityId: f.id, facilityName: f.name, status: maintenanceStatus(t) })))
+      .sort((a, b) => a.status.daysUntil - b.status.daysUntil);
+  }, [enriched]);
+
+  const contractorStats = useMemo(() => {
+    const map = {};
+    enriched.forEach(f => (f.workOrders || []).forEach(w => {
+      const name = (w.contractor || "").trim();
+      if (!name) return;
+      if (!map[name]) map[name] = { total: 0, open: 0, resolved: 0, totalDays: 0, withDays: 0 };
+      map[name].total += 1;
+      if (CLOSED_STATUSES.includes(w.status)) {
+        map[name].resolved += 1;
+        if (w.dateReported && w.dateResolved) {
+          const days = Math.max(0, Math.round((new Date(w.dateResolved) - new Date(w.dateReported)) / 86400000));
+          map[name].totalDays += days;
+          map[name].withDays += 1;
+        }
+      } else {
+        map[name].open += 1;
+      }
+    }));
+    return Object.entries(map).map(([name, v]) => ({
+      name, total: v.total, open: v.open, resolved: v.resolved,
+      avgDays: v.withDays > 0 ? Math.round(v.totalDays / v.withDays) : null
+    })).sort((a, b) => b.total - a.total);
+  }, [enriched]);
+
+  const contractorOptions = useMemo(() => {
+    const seen = new Set(knownContractors);
+    enriched.forEach(f => (f.workOrders || []).forEach(w => { if (w.contractor) seen.add(w.contractor); }));
+    return Array.from(seen).filter(Boolean).sort();
+  }, [knownContractors, enriched]);
+
+  const suggestedFacilityId = useMemo(() => guessFacilityFromText(quickLogText, facilities), [quickLogText, facilities]);
+
+  const hasDemo = useMemo(() => facilities.some(f => f._demo), [facilities]);
+
+  // Remove only the seeded example data, preserving anything the user has added,
+  // and drop the demo-provided officials/contractors that are no longer referenced.
+  function clearDemoData() {
+    if (!window.confirm("Clear the example data and start fresh?\n\nThis removes the sample facilities so you can enter your real ones. Anything you've already added yourself is kept.")) return;
+    const real = facilities.filter(f => !f._demo);
+    const usedOfficials = new Set(real.map(f => f.official).filter(Boolean));
+    const usedContractors = new Set(real.flatMap(f => (f.issues || []).map(w => w.contractor).filter(Boolean)));
+    setFacilities(real);
+    setOfficials(prev => prev.filter(o => !DEMO_OFFICIALS.includes(o) || usedOfficials.has(o)));
+    setKnownContractors(prev => prev.filter(c => !DEMO_CONTRACTORS.includes(c) || usedContractors.has(c)));
+    setBriefing("");
+    setBriefingAt("");
+  }
+
+  // When bulk-importing real facilities, drop the seeded examples first so the
+  // user's data replaces them rather than sitting mixed in alongside.
+  function withoutDemo(list) {
+    return list.filter(f => !f._demo);
+  }
+
+  function saveFacility(f) {
+    setFacilities(prev => {
+      const exists = prev.some(p => p.id === f.id);
+      if (exists) return prev.map(p => p.id === f.id ? f : p);
+      return [...prev, { ...f, issues: f.issues || [], maintenanceTasks: f.maintenanceTasks || [] }];
+    });
+    setShowForm(false);
+    setEditing(null);
+  }
+
+  function deleteFacility(id) {
+    if (!window.confirm("Delete this facility? This cannot be undone.")) return;
+    setFacilities(prev => prev.filter(f => f.id !== id));
+  }
+
+  function logInspection(facilityId) {
+    setFacilities(prev => prev.map(f => f.id === facilityId ? { ...f, lastInspected: todayStr() } : f));
+  }
+
+  function saveWorkOrder(facilityId, wo, isEdit) {
+    const facility = facilities.find(f => f.id === facilityId);
+    if (!isEdit && facility) {
+      const dup = findLikelyDuplicate(facility, wo.description);
+      if (dup) {
+        const proceed = window.confirm(
+          `This looks similar to an existing open work order ${dup.woNumber}: "${dup.description}"\n\nLog this as a new, separate work order anyway?`
+        );
+        if (!proceed) return false;
+      }
+    }
+    setFacilities(prev => prev.map(f => {
+      if (f.id !== facilityId) return f;
+      const list = f.issues || [];
+      if (isEdit) {
+        return { ...f, issues: list.map(w => w.id === wo.id ? wo : w) };
+      }
+      const withActivity = { ...wo, activity: [{ date: nowStamp(), note: "Work order logged (" + wo.status + ")" }] };
+      return { ...f, issues: [...list, withActivity] };
+    }));
+    setWoFor(null);
+    setEditingWO(null);
+    setWoPrefillDescription("");
+    setQuickLogText("");
+    setQuickLogFacilityId("");
+    return true;
+  }
+
+  function updateWOStatus(facilityId, woId, newStatus) {
+    setFacilities(prev => prev.map(f => {
+      if (f.id !== facilityId) return f;
+      return {
+        ...f, issues: (f.issues || []).map(w => w.id === woId ? {
+          ...w, status: newStatus,
+          dateResolved: CLOSED_STATUSES.includes(newStatus) ? todayStr() : w.dateResolved,
+          activity: [...(w.activity || []), { date: nowStamp(), note: "Status changed to " + newStatus }]
+        } : w)
+      };
+    }));
+  }
+
+  function deleteWorkOrder(facilityId, woId) {
+    if (!window.confirm("Delete this work order? This cannot be undone.")) return;
+    setFacilities(prev => prev.map(f => f.id === facilityId ? { ...f, issues: (f.issues || []).filter(w => w.id !== woId) } : f));
+  }
+
+  function startQuickLogWorkOrder() {
+    const facilityId = quickLogFacilityId || suggestedFacilityId;
+    if (!facilityId) { alert("Pick which facility this is about first (the suggestion box couldn't match one automatically)."); return; }
+    setWoPrefillDescription(quickLogText.trim());
+    setEditingWO(null);
+    setWoFor(facilityId);
+  }
+
+  function addMaintenanceTask(facilityId, task) {
+    setFacilities(prev => prev.map(f => f.id === facilityId ? { ...f, maintenanceTasks: [...(f.maintenanceTasks || []), task] } : f));
+    setShowMaintForm(false);
+  }
+
+  function markMaintenanceDone(facilityId, taskId) {
+    setFacilities(prev => prev.map(f => {
+      if (f.id !== facilityId) return f;
+      return { ...f, maintenanceTasks: (f.maintenanceTasks || []).map(t => t.id === taskId ? { ...t, lastCompleted: todayStr() } : t) };
+    }));
+  }
+
+  function deleteMaintenanceTask(facilityId, taskId) {
+    if (!window.confirm("Delete this maintenance task?")) return;
+    setFacilities(prev => prev.map(f => f.id === facilityId ? { ...f, maintenanceTasks: (f.maintenanceTasks || []).filter(t => t.id !== taskId) } : f));
+  }
+
+  function addOfficial() {
+    const name = newOfficial.trim();
+    if (!name || officials.includes(name)) return;
+    setOfficials(prev => [...prev, name]);
+    setNewOfficial("");
+  }
+
+  function removeOfficial(name) {
+    setOfficials(prev => prev.filter(o => o !== name));
+  }
+
+  function addContractor() {
+    const name = newContractor.trim();
+    if (!name || knownContractors.includes(name)) return;
+    setKnownContractors(prev => [...prev, name]);
+    setNewContractor("");
+  }
+
+  function removeContractor(name) {
+    setKnownContractors(prev => prev.filter(c => c !== name));
+  }
+
+  function handleImportCSV() {
+    const rows = parseCSV(csvText);
+    if (rows.length === 0) { alert("No rows found. Header row should be: name,official,status,lastinspected,notes"); return; }
+    const imported = rows.map(r => ({
+      id: uid(),
+      name: r.name || r.facility || "Unnamed facility",
+      official: r.official || "",
+      status: r.status || "Operational",
+      lastInspected: r.lastinspected || r["last inspected"] || "",
+      notes: r.notes || "",
+      issues: [],
+      maintenanceTasks: []
+    }));
+    setFacilities(prev => [...withoutDemo(prev), ...imported]);
+    const newOfficials = Array.from(new Set(imported.map(f => f.official).filter(Boolean)));
+    setOfficials(prev => Array.from(new Set([...prev, ...newOfficials])));
+    setCsvText("");
+    alert(`Imported ${imported.length} facilities.`);
+  }
+
+  // Read a .csv file the user picked and drop its text into the paste box so they
+  // can eyeball it before committing the import — easier than copy-pasting from Excel.
+  function handleCSVFile(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => { setCsvText(evt.target.result || ""); };
+    reader.onerror = () => alert("Could not read that file.");
+    reader.readAsText(file);
+    e.target.value = "";
+  }
+
+  // A ready-made CSV Neil can open in Excel/Sheets, fill in, and upload back.
+  function downloadCSVTemplate() {
+    const content = "name,official,status,lastinspected,notes\n"
+      + "Wynberg Taxi Rank,J. Petersen,Operational,2026-06-15,Roof leaking in bay 3\n"
+      + "Bellville PTI,M. Adams,Needs Attention,2026-05-30,Awaiting contractor callout\n";
+    downloadFile("facilities_template.csv", content, "text/csv");
+  }
+
+  function importPlannerBackup(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const data = JSON.parse(evt.target.result);
+        if (!data || !Array.isArray(data.facilities)) { alert("That doesn't look like a Facilities Rationalisation Planner backup file."); return; }
+        if (!window.confirm(`Import ${data.facilities.length} facilities from the Rationalisation Planner backup? This adds them alongside anything already here (it won't overwrite existing entries).`)) return;
+        const imported = data.facilities.map(f => ({
+          id: uid(),
+          name: f.name || "Unnamed facility",
+          official: f.official || "",
+          status: "Operational",
+          lastInspected: "",
+          notes: f.notes || "",
+          issues: [],
+          maintenanceTasks: []
+        }));
+        setFacilities(prev => [...withoutDemo(prev), ...imported]);
+        const newOfficials = Array.from(new Set(imported.map(f => f.official).filter(Boolean)));
+        setOfficials(prev => Array.from(new Set([...prev, ...(data.officials || []), ...newOfficials])));
+        alert(`Imported ${imported.length} facilities from the Planner. New facilities start as "Operational" with no inspection date — log an inspection to set a real baseline.`);
+      } catch (err) {
+        alert("Could not read that file — is it a valid Planner backup JSON?");
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  }
+
+  function exportCSV() {
+    const header = ["Name", "Official", "Status", "LastInspected", "DaysSinceInspection", "Overdue", "OpenWorkOrders", "OverdueMaintenance", "Notes"];
+    const lines = [header.join(",")];
+    enriched.forEach(f => {
+      lines.push([
+        toCSVValue(f.name), toCSVValue(f.official), toCSVValue(f.status), toCSVValue(f.lastInspected || "never"),
+        f.daysSinceInspection === null ? "never" : f.daysSinceInspection, f.overdue ? "YES" : "no", f.openWOs.length, f.overdueMaintCount, toCSVValue(f.notes || "")
+      ].join(","));
+    });
+    downloadFile("facilities_monitoring_" + todayStr() + ".csv", lines.join("\n"), "text/csv");
+  }
+
+  function exportWorkOrdersCSV() {
+    const header = ["Facility", "WONumber", "Status", "Severity", "Contractor", "WaitingOn", "DateReported", "DateResolved", "Description"];
+    const lines = [header.join(",")];
+    enriched.forEach(f => {
+      (f.workOrders || []).forEach(w => {
+        lines.push([
+          toCSVValue(f.name), toCSVValue(w.woNumber), toCSVValue(w.status), toCSVValue(w.severity), toCSVValue(w.contractor || ""),
+          toCSVValue(w.waitingOn || ""), toCSVValue(w.dateReported), toCSVValue(w.dateResolved || ""), toCSVValue(w.description)
+        ].join(","));
+      });
+    });
+    downloadFile("work_orders_" + todayStr() + ".csv", lines.join("\n"), "text/csv");
+  }
+
+  function exportMaintenanceCSV() {
+    const header = ["Facility", "Task", "FrequencyDays", "LastCompleted", "NextDue", "StatusLabel"];
+    const lines = [header.join(",")];
+    allMaintenanceTasks.forEach(t => {
+      lines.push([
+        toCSVValue(t.facilityName), toCSVValue(t.name), t.frequencyDays, toCSVValue(t.lastCompleted || "never"),
+        toCSVValue(computeNextDue(t) || ""), toCSVValue(t.status.label)
+      ].join(","));
+    });
+    downloadFile("maintenance_schedule_" + todayStr() + ".csv", lines.join("\n"), "text/csv");
+  }
+
+  function exportJSONBackup() {
+    const payload = { facilities, officials, knownContractors, overdueDays, model, exportedAt: new Date().toISOString() };
+    downloadFile("facilities_monitoring_backup_" + todayStr() + ".json", JSON.stringify(payload, null, 2), "application/json");
+  }
+
+  function importJSONBackup(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const data = JSON.parse(evt.target.result);
+        if (!window.confirm("This will replace all current facilities and settings with the backup file. Continue?")) return;
+        setFacilities(data.facilities || []);
+        setOfficials(data.officials || []);
+        setKnownContractors(data.knownContractors || []);
+        setOverdueDays(data.overdueDays !== undefined ? data.overdueDays : DEFAULT_OVERDUE_DAYS);
+        if (data.model) setModel(data.model);
+        alert("Backup restored.");
+      } catch (err) {
+        alert("Could not read that file — is it a valid backup JSON?");
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  }
+
+  async function generateBriefing() {
+    if (!apiKey) { alert("Add your Anthropic API key in Settings first."); setTab("settings"); return; }
+    setBriefBusy(true);
+    try {
+      const overdueList = enriched.filter(f => f.overdue).slice(0, 25).map(f => `${f.name} (official: ${f.official || "unassigned"}, ${f.daysSinceInspection === null ? "never inspected" : f.daysSinceInspection + " days since last inspection"})`).join("; ");
+      const highWOs = enriched.flatMap(f => f.openWOs.filter(w => w.severity === "High").map(w => `${f.name} (${w.woNumber}): ${w.description}`)).slice(0, 15).join("; ");
+      const overdueMaint = enriched.flatMap(f => (f.maintenanceTasks || []).filter(t => maintenanceStatus(t).overdue).map(t => `${f.name}: ${t.name}`)).slice(0, 15).join("; ");
+      const prompt = `You are briefing a Senior Manager at the City of Cape Town (Public Transportation Facilities Management) at the start of their day. Give a short, prioritized, plain-language briefing (4-6 sentences, no headings, no bullet points) covering what most needs attention today.
+
+Total facilities monitored: ${summary.total}
+Facilities overdue for inspection (over ${overdueDays} days or never inspected): ${summary.overdueCount}
+Overdue facility details: ${overdueList || "none"}
+Facilities not in "Operational" status: ${summary.needsAttention}
+Total open work orders: ${summary.openWOTotal}, of which high severity: ${summary.highSeverityOpen}
+High severity work order details: ${highWOs || "none"}
+Overdue preventative maintenance tasks: ${summary.maintOverdueTotal}
+Overdue maintenance details: ${overdueMaint || "none"}
+
+Write the briefing directly, as if speaking to the manager, prioritizing the most urgent items first.`;
+      const raw = await callClaude(apiKey, model, prompt);
+      setBriefing(raw.trim());
+      setBriefingAt(new Date().toISOString());
+    } catch (e) {
+      alert("Briefing generation failed: " + e.message);
+    } finally {
+      setBriefBusy(false);
+    }
+  }
+
+  // Focused on-site view when arriving via a facility QR code / deep link.
+  const quickFacility = quickFacilityId ? enriched.find(f => f.id === quickFacilityId) : null;
+  if (quickFacility) {
+    return (
+      <QuickFacilityView
+        facility={quickFacility}
+        onLogInspection={() => logInspection(quickFacility.id)}
+        onAddWO={() => { setEditingWO(null); setWoPrefillDescription(""); setWoFor(quickFacility.id); }}
+        onExit={() => { window.location.hash = ""; setQuickFacilityId(null); }}
+      />
+    );
+  }
+
+  return (
+    <React.Fragment>
+      <header className="app-header">
+        <div className="header-row">
+          <div>
+            <h1>115 Facilities Monitoring Dashboard</h1>
+            <p>Public Transportation Facilities Management — City of Cape Town</p>
+          </div>
+          {summary.overdueCount > 0
+            ? <span className="bad-badge">{summary.overdueCount} overdue for inspection</span>
+            : <span className="gold-badge">{facilities.length} facilities tracked</span>}
+        </div>
+      </header>
+      <nav className="tabs">
+        <button className={tab === "dashboard" ? "active" : ""} onClick={() => setTab("dashboard")}>Dashboard</button>
+        <button className={tab === "facilities" ? "active" : ""} onClick={() => setTab("facilities")}>Facilities</button>
+        <button className={tab === "workorders" ? "active" : ""} onClick={() => setTab("workorders")}>Work Orders</button>
+        <button className={tab === "maintenance" ? "active" : ""} onClick={() => setTab("maintenance")}>Maintenance</button>
+        <button className={tab === "contractors" ? "active" : ""} onClick={() => setTab("contractors")}>Contractors</button>
+        <button className={tab === "qr" ? "active" : ""} onClick={() => setTab("qr")}>QR Codes</button>
+        <button className={tab === "import" ? "active" : ""} onClick={() => setTab("import")}>Import / Export</button>
+        <button className={tab === "settings" ? "active" : ""} onClick={() => setTab("settings")}>Settings</button>
+      </nav>
+      <main>
+        {hasDemo && (
+          <div className="demo-banner no-print">
+            <span><b>Example data loaded.</b> These are sample facilities so you can explore how the dashboard works. When you're ready, clear them and add your own on the Facilities or Import / Export tab.</span>
+            <button className="btn small gold" onClick={clearDemoData}>Clear example data</button>
+          </div>
+        )}
+        {tab === "dashboard" && (
+          <React.Fragment>
+            <div className="grid cols-4">
+              <StatCard num={summary.total} label="Facilities tracked" />
+              <StatCard num={summary.overdueCount} label={"Overdue inspection (>" + overdueDays + "d)"} alert={summary.overdueCount > 0} />
+              <StatCard num={summary.openWOTotal} label={"Open work orders (" + summary.highSeverityOpen + " high)"} alert={summary.highSeverityOpen > 0} />
+              <StatCard num={summary.maintOverdueTotal} label="Maintenance overdue" alert={summary.maintOverdueTotal > 0} />
+            </div>
+            <div className="card">
+              <h2>AI Daily Briefing</h2>
+              <p className="small">One click, prioritized summary of what needs attention today — built from overdue inspections, open high-severity work orders, and overdue preventative maintenance.</p>
+              <button className="btn gold" onClick={generateBriefing} disabled={briefBusy}>{briefBusy ? "Generating..." : "Generate Today's Briefing"}</button>
+              {briefing && (
+                <div className="ai-box">
+                  {briefing}
+                  <div className="small" style={{ marginTop: "8px" }}>Generated {briefingAt ? new Date(briefingAt).toLocaleString() : ""}</div>
+                </div>
+              )}
+            </div>
+            <div className="card">
+              <h2>Workload by Monitoring Official</h2>
+              <p className="small">Facility count per official, with overdue count highlighted — useful for spotting an overloaded official before it becomes a problem.</p>
+              {workload.length === 0 && <p className="small">No officials or facilities yet.</p>}
+              {workload.map(([name, v]) => (
+                <div className="bar-row" key={name}>
+                  <div>{name}</div>
+                  <div className="bar-track">
+                    <div className={"bar-fill" + (v.overdue > 0 ? " overdue" : "")} style={{ width: (v.total / maxWorkload * 100) + "%" }}></div>
+                  </div>
+                  <div className="small">{v.total} ({v.overdue} late)</div>
+                </div>
+              ))}
+            </div>
+            <div className="card no-print">
+              <h2>Print / Share Report</h2>
+              <button className="btn ghost" onClick={() => window.print()}>Print Report</button>
+            </div>
+          </React.Fragment>
+        )}
+
+        {tab === "facilities" && (
+          <div className="card">
+            <div className="toolbar">
+              <input type="text" placeholder="Search facility name..." value={search} onChange={e => setSearch(e.target.value)} />
+              <select value={filterOfficial} onChange={e => setFilterOfficial(e.target.value)} style={{ width: "180px" }}>
+                <option value="">All officials</option>
+                {officials.map(o => <option key={o} value={o}>{o}</option>)}
+              </select>
+              <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ width: "160px" }}>
+                <option value="">All statuses</option>
+                <option>Operational</option><option>Needs Attention</option><option>Under Repair</option><option>Closed</option>
+              </select>
+              <label className="flex" style={{ marginBottom: 0, fontWeight: 600 }}>
+                <input type="checkbox" style={{ width: "auto" }} checked={overdueOnly} onChange={e => setOverdueOnly(e.target.checked)} /> Overdue only
+              </label>
+              <button className="btn gold" onClick={() => { setEditing(null); setShowForm(true); }}>+ Add Facility</button>
+              <span className="pill">{filtered.length} shown</span>
+            </div>
+
+            <div className="desktop-only">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Facility</th><th>Official</th><th>Status</th><th>Last Inspected</th><th>Open WOs</th><th>Maint. overdue</th><th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map(f => (
+                    <tr key={f.id}>
+                      <td>
+                        <div className="flex" style={{ gap: "8px" }}>
+                          {f.photo && <img src={f.photo} alt="" className="fac-thumb" onClick={() => setLightbox(f.photo)} />}
+                          <strong>{f.name}</strong>
+                        </div>
+                      </td>
+                      <td>{f.official || <span className="small">Unassigned</span>}</td>
+                      <td><span className={"badge " + f.status.replace(/ /g, "")}>{f.status}</span></td>
+                      <td>
+                        {f.daysSinceInspection === null ? <span className="badge overdue">Never</span> : (
+                          <span className={"badge " + (f.overdue ? "overdue" : "ok")}>{f.daysSinceInspection}d ago</span>
+                        )}
+                      </td>
+                      <td>{f.openWOs.length}</td>
+                      <td>{f.overdueMaintCount}</td>
+                      <td>
+                        <div className="flex">
+                          <button className="btn ghost small" onClick={() => logInspection(f.id)}>Log Inspection</button>
+                          <button className="btn ghost small" onClick={() => { setEditingWO(null); setWoPrefillDescription(""); setWoFor(f.id); }}>+ WO</button>
+                          <button className="btn ghost small" onClick={() => { setEditing(f); setShowForm(true); }}>Edit</button>
+                          <button className="btn danger small" onClick={() => deleteFacility(f.id)}>Delete</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {filtered.map(f => (
+              <div className="facility-card mobile-only" key={"m" + f.id}>
+                <div className="fc-top">
+                  <div className="flex" style={{ gap: "10px" }}>
+                    {f.photo && <img src={f.photo} alt="" className="fac-thumb" onClick={() => setLightbox(f.photo)} />}
+                    <div>
+                      <div className="fc-name">{f.name}</div>
+                      <div className="fc-meta">{f.official || "Unassigned"}</div>
+                    </div>
+                  </div>
+                  <span className={"badge " + f.status.replace(/ /g, "")}>{f.status}</span>
+                </div>
+                <div className="fc-scores">
+                  <span>{f.daysSinceInspection === null ? "Never inspected" : f.daysSinceInspection + " days since inspection"}</span>
+                  <span>{f.openWOs.length} open WOs</span>
+                  <span>{f.overdueMaintCount} maint. overdue</span>
+                </div>
+                <div className="fc-actions">
+                  <button className="btn ghost small" onClick={() => logInspection(f.id)}>Log Inspection</button>
+                  <button className="btn ghost small" onClick={() => { setEditingWO(null); setWoPrefillDescription(""); setWoFor(f.id); }}>+ Work Order</button>
+                  <button className="btn ghost small" onClick={() => { setEditing(f); setShowForm(true); }}>Edit</button>
+                  <button className="btn danger small" onClick={() => deleteFacility(f.id)}>Delete</button>
+                </div>
+              </div>
+            ))}
+            {filtered.length === 0 && <p className="small">No facilities match the current filters.</p>}
+          </div>
+        )}
+
+        {tab === "workorders" && (
+          <React.Fragment>
+            <div className="card">
+              <h2>Quick-Log from WhatsApp</h2>
+              <p className="small">Paste the raw forwarded message text — the tool tries to spot which facility it's about and pre-fills a work order for you to check before saving.</p>
+              <div className="field">
+                <textarea rows="4" value={quickLogText} onChange={e => setQuickLogText(e.target.value)} placeholder="Paste the forwarded WhatsApp message here..." />
+              </div>
+              <div className="grid cols-2">
+                <div className="field">
+                  <label>Facility {suggestedFacilityId && !quickLogFacilityId ? "(auto-detected)" : ""}</label>
+                  <select value={quickLogFacilityId || suggestedFacilityId} onChange={e => setQuickLogFacilityId(e.target.value)}>
+                    <option value="">Choose a facility...</option>
+                    {facilities.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                  </select>
+                </div>
+                <div className="field" style={{ display: "flex", alignItems: "flex-end" }}>
+                  <button className="btn gold" disabled={!quickLogText.trim()} onClick={startQuickLogWorkOrder} style={{ width: "100%" }}>Create Work Order</button>
+                </div>
+              </div>
+            </div>
+            <div className="card">
+              <h2>Work Orders</h2>
+              <p className="small">Modeled on how issues actually arrive — a photo report gets a work order number, a contractor gets assigned, and status updates follow until it's closed.</p>
+              {enriched.flatMap(f => (f.workOrders || []).map(w => ({ ...w, facilityName: f.name, facilityId: f.id }))).length === 0 && (
+                <p className="small">No work orders logged yet.</p>
+              )}
+              {enriched.flatMap(f => (f.workOrders || []).map(w => ({ ...w, facilityName: f.name, facilityId: f.id })))
+                .sort((a, b) => {
+                  const aOpen = !CLOSED_STATUSES.includes(a.status), bOpen = !CLOSED_STATUSES.includes(b.status);
+                  if (aOpen !== bOpen) return aOpen ? -1 : 1;
+                  return (b.severity === "High") - (a.severity === "High");
+                })
+                .map(w => (
+                  <div className="wo-card" key={w.id}>
+                    <div className="wo-top">
+                      <div>
+                        <strong>{w.facilityName}</strong> <span className="wo-number">{w.woNumber}</span>{" "}
+                        <span className={"sev-" + w.severity}>{w.severity}</span>
+                      </div>
+                      <span className={"badge wo-" + w.status.replace(/ /g, "")}>{w.status}</span>
+                    </div>
+                    <div className="small" style={{ marginTop: "6px" }}>{w.description}</div>
+                    <div className="flex" style={{ marginTop: "8px" }}>
+                      {w.contractor && <span className="pill">Contractor: {w.contractor}</span>}
+                      {w.waitingOn && <span className="wo-tag">Waiting on {w.waitingOn}</span>}
+                      <span className="small">Reported {w.dateReported}</span>
+                    </div>
+                    {w.photo && <img src={w.photo} alt="work order evidence" className="wo-photo" onClick={() => setLightbox(w.photo)} />}
+                    {w.activity && w.activity.length > 0 && (
+                      <div className="activity-list">
+                        {w.activity.slice().reverse().map((a, i) => (
+                          <div className="activity-item" key={i}><b>{new Date(a.date).toLocaleString()}</b> — {a.note}</div>
+                        ))}
+                      </div>
+                    )}
+                    <div className="flex" style={{ marginTop: "10px" }}>
+                      <select style={{ width: "170px" }} value={w.status} onChange={e => updateWOStatus(w.facilityId, w.id, e.target.value)}>
+                        {WO_STATUSES.map(s => <option key={s}>{s}</option>)}
+                      </select>
+                      <button className="btn ghost small" onClick={() => { setEditingWO(w); setWoPrefillDescription(""); setWoFor(w.facilityId); }}>Edit</button>
+                      <button className="btn danger small" onClick={() => deleteWorkOrder(w.facilityId, w.id)}>Delete</button>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          </React.Fragment>
+        )}
+
+        {tab === "maintenance" && (
+          <div className="card">
+            <div className="toolbar">
+              <h2 style={{ margin: 0 }}>Preventative &amp; Routine Maintenance</h2>
+              <button className="btn gold" onClick={() => setShowMaintForm(true)} disabled={facilities.length === 0}>+ Add Task</button>
+            </div>
+            <p className="small">Recurring upkeep — service schedules, inspections, cleaning cycles — tracked separately from reactive work orders. Sorted by most overdue first.</p>
+            {facilities.length === 0 && <p className="small">Add a facility first before scheduling maintenance tasks.</p>}
+            {allMaintenanceTasks.length === 0 && facilities.length > 0 && <p className="small">No maintenance tasks scheduled yet.</p>}
+            {allMaintenanceTasks.map(t => (
+              <div className="maint-row" key={t.id}>
+                <div><strong>{t.facilityName}</strong></div>
+                <div>{t.name}</div>
+                <div className="small">every {t.frequencyDays}d</div>
+                <div className="small">{t.lastCompleted ? "done " + t.lastCompleted : "never done"}</div>
+                <div><span className={"badge " + t.status.cls}>{t.status.label}</span></div>
+                <div className="flex">
+                  <button className="btn ghost small" onClick={() => markMaintenanceDone(t.facilityId, t.id)}>Mark Done Today</button>
+                  <button className="btn danger small" onClick={() => deleteMaintenanceTask(t.facilityId, t.id)}>Delete</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {tab === "contractors" && (
+          <React.Fragment>
+            <div className="card">
+              <h2>Contractor Performance</h2>
+              <p className="small">Aggregated automatically from work order history — spot a consistently slow contractor before it becomes a pattern.</p>
+              {contractorStats.length === 0 && <p className="small">No work orders with a contractor assigned yet.</p>}
+              {contractorStats.length > 0 && (
+                <table>
+                  <thead>
+                    <tr><th>Contractor</th><th>Total WOs</th><th>Open</th><th>Resolved</th><th>Avg. days to resolve</th></tr>
+                  </thead>
+                  <tbody>
+                    {contractorStats.map(c => (
+                      <tr key={c.name}>
+                        <td>{c.name}</td>
+                        <td>{c.total}</td>
+                        <td>{c.open}</td>
+                        <td>{c.resolved}</td>
+                        <td>{c.avgDays === null ? "—" : c.avgDays + "d"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+            <div className="card">
+              <h2>Known Contractors</h2>
+              <p className="small">Maintain a list so the Work Order form's contractor field auto-suggests consistent names instead of "ABC Electrical" vs "abc electrical (Pty) Ltd" fragmenting your stats.</p>
+              <div className="flex">
+                <input type="text" style={{ width: "220px" }} value={newContractor} onChange={e => setNewContractor(e.target.value)} placeholder="Add contractor name..." />
+                <button className="btn gold" onClick={addContractor}>Add</button>
+              </div>
+              <div style={{ marginTop: "10px" }}>
+                {knownContractors.length === 0 && <p className="small">No contractors added yet — names used on work orders still show up in the table above automatically.</p>}
+                {knownContractors.map(c => (
+                  <span key={c} className="pill" style={{ marginRight: "6px", marginBottom: "6px", display: "inline-block" }}>
+                    {c} <button className="close-x" style={{ float: "none", fontSize: "12px", marginLeft: "4px" }} onClick={() => removeContractor(c)}>✕</button>
+                  </span>
+                ))}
+              </div>
+            </div>
+          </React.Fragment>
+        )}
+
+        {tab === "qr" && (
+          <React.Fragment>
+            <div className="card">
+              <h2>Facility QR Codes</h2>
+              <p className="warn-box">
+                Important: these QR codes encode a link back into this exact file. Scanning one with a phone camera only works once this file is hosted at a real, reachable web address (for example GitHub Pages, Netlify, a company intranet site, or similar) — opening it locally by double-clicking (a <code>file://</code> address) means a phone camera cannot reach it, since it only exists on this computer. Until this is hosted somewhere, treat this tab as ready-to-go rather than something to print and stick up yet.
+              </p>
+              <button className="btn ghost no-print" onClick={() => window.print()}>Print QR Sheet</button>
+            </div>
+            <div className="card">
+              <div className="grid qr-grid">
+                {facilities.length === 0 && <p className="small">Add facilities first to generate their QR codes.</p>}
+                {facilities.map(f => (
+                  <div className="qr-card" key={f.id}>
+                    <QRCodeImage value={buildFacilityLink(f.id)} size={140} />
+                    <div className="qname">{f.name}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </React.Fragment>
+        )}
+
+        {tab === "import" && (
+          <React.Fragment>
+            <div className="card">
+              <h2>Bring In Facilities From the Rationalisation Planner</h2>
+              <p className="small">If facilities were already entered in the Facilities Rationalisation Planner, import that tool's JSON backup here instead of retyping all 115 by hand. Names, officials, and notes come across; inspection status starts fresh since that Planner doesn't track inspections.</p>
+              <button className="btn gold" onClick={() => plannerInputRef.current.click()}>Import Planner Backup (JSON)</button>
+              <input type="file" accept="application/json" ref={plannerInputRef} style={{ display: "none" }} onChange={importPlannerBackup} />
+            </div>
+            <div className="card">
+              <h2>Bulk Import (CSV)</h2>
+              <p className="small">Two easy ways to load all 115 facilities at once. Header row: <code>name,official,status,lastinspected,notes</code>. Status is one of Operational, Needs Attention, Under Repair, Closed. Dates as YYYY-MM-DD.</p>
+              <div className="upload-row">
+                <button className="btn ghost" onClick={downloadCSVTemplate}>1. Download CSV template</button>
+                <span className="small">Open it in Excel or Google Sheets, fill in your facilities, save.</span>
+              </div>
+              <div className="upload-row">
+                <button className="btn gold" onClick={() => csvInputRef.current.click()}>2. Upload your CSV file</button>
+                <input type="file" accept=".csv,text/csv" ref={csvInputRef} style={{ display: "none" }} onChange={handleCSVFile} />
+                <span className="small">Loads the file below so you can check it before importing.</span>
+              </div>
+              <p className="small" style={{ marginTop: "10px", marginBottom: "4px" }}>…or paste rows directly:</p>
+              <textarea rows="8" value={csvText} onChange={e => setCsvText(e.target.value)} placeholder="name,official,status,lastinspected,notes&#10;Wynberg Taxi Rank,J. Petersen,Operational,2026-06-15,Roof leaking in bay 3"></textarea>
+              <div className="flex" style={{ marginTop: "10px" }}>
+                <button className="btn gold" disabled={!csvText.trim()} onClick={handleImportCSV}>Import Rows</button>
+                {csvText.trim() && <button className="btn ghost" onClick={() => setCsvText("")}>Clear</button>}
+              </div>
+            </div>
+            <div className="card">
+              <h2>Export</h2>
+              <div className="flex">
+                <button className="btn" onClick={exportCSV}>Export Facilities CSV</button>
+                <button className="btn" onClick={exportWorkOrdersCSV}>Export Work Orders CSV</button>
+                <button className="btn" onClick={exportMaintenanceCSV}>Export Maintenance CSV</button>
+              </div>
+              <div className="flex" style={{ marginTop: "8px" }}>
+                <button className="btn ghost" onClick={exportJSONBackup}>Download full backup (JSON)</button>
+                <button className="btn ghost" onClick={() => jsonInputRef.current.click()}>Restore from backup (JSON)</button>
+                <input type="file" accept="application/json" ref={jsonInputRef} style={{ display: "none" }} onChange={importJSONBackup} />
+              </div>
+              <p className="small" style={{ marginTop: "8px" }}>Data lives only in this browser's local storage. Download a JSON backup periodically — clearing browser data or switching computers will lose everything otherwise.</p>
+            </div>
+          </React.Fragment>
+        )}
+
+        {tab === "settings" && (
+          <React.Fragment>
+            <div className="card">
+              <h2>Anthropic API (for the AI Daily Briefing)</h2>
+              <div className="field">
+                <label>API Key</label>
+                <input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="sk-ant-..." />
+              </div>
+              <div className="field">
+                <label>Model</label>
+                <input type="text" value={model} onChange={e => setModel(e.target.value)} />
+                <p className="small">Default is claude-sonnet-5. Update this if Anthropic renames or retires the model.</p>
+              </div>
+              <p className="small">Your key is stored only in this browser's local storage and sent directly to Anthropic's API — never through any other server.</p>
+            </div>
+            <div className="card">
+              <h2>Overdue Threshold</h2>
+              <div className="field">
+                <label>Days since last inspection before a facility is flagged overdue</label>
+                <input type="number" min="1" max="180" value={overdueDays} onChange={e => setOverdueDays(Math.max(1, Number(e.target.value) || DEFAULT_OVERDUE_DAYS))} />
+              </div>
+            </div>
+            <div className="card">
+              <h2>Monitoring Officials</h2>
+              <div className="flex">
+                <input type="text" style={{ width: "220px" }} value={newOfficial} onChange={e => setNewOfficial(e.target.value)} placeholder="Add official name..." />
+                <button className="btn gold" onClick={addOfficial}>Add</button>
+              </div>
+              <div style={{ marginTop: "10px" }}>
+                {officials.length === 0 && <p className="small">No officials added yet — add your 10 monitoring officials here, or import them automatically from the Planner backup.</p>}
+                {officials.map(o => (
+                  <span key={o} className="pill" style={{ marginRight: "6px", marginBottom: "6px", display: "inline-block" }}>
+                    {o} <button className="close-x" style={{ float: "none", fontSize: "12px", marginLeft: "4px" }} onClick={() => removeOfficial(o)}>✕</button>
+                  </span>
+                ))}
+              </div>
+            </div>
+          </React.Fragment>
+        )}
+
+        <p className="footer-note">Neil Arendse Toolkit — 115 Facilities Monitoring Dashboard v4 · Data stored locally in this browser only. A separate tool from the Facilities Rationalisation Planner — this one tracks day-to-day inspection status, work orders, and preventative maintenance; the Planner handles the Maintain/Optimise/Monitor/Decommission strategic review.</p>
+      </main>
+      {showForm && (
+        <FacilityForm
+          initial={editing}
+          officials={officials}
+          onSave={saveFacility}
+          onCancel={() => { setShowForm(false); setEditing(null); }}
+        />
+      )}
+      {woFor && (
+        <WorkOrderForm
+          initial={editingWO}
+          initialDescription={woPrefillDescription}
+          contractorOptions={contractorOptions}
+          onSave={(wo) => saveWorkOrder(woFor, wo, !!editingWO)}
+          onCancel={() => { setWoFor(null); setEditingWO(null); setWoPrefillDescription(""); }}
+        />
+      )}
+      {showMaintForm && (
+        <MaintenanceTaskForm
+          facilities={facilities}
+          onSave={addMaintenanceTask}
+          onCancel={() => setShowMaintForm(false)}
+        />
+      )}
+      {lightbox && (
+        <div className="modal-backdrop" onClick={() => setLightbox(null)}>
+          <img src={lightbox} alt="full size" style={{ maxWidth: "100%", borderRadius: "10px" }} />
+        </div>
+      )}
+    </React.Fragment>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+<script>
+  // See Facilities_Rationalisation_Planner.html for why this manual-transform pattern is used
+  // instead of the automatic <script type="text/babel"> scan: babel-standalone's default JSX
+  // runtime is "automatic", which injects an ES module import that cannot execute in a plain
+  // script tag and silently fails to mount the app (blank page, no visible error).
+  (function () {
+    var src = document.getElementById("app-source").textContent;
+    try {
+      var out = Babel.transform(src, { presets: [["react", { runtime: "classic" }]] }).code;
+      new Function(out)();
+    } catch (e) {
+      document.getElementById("root").innerHTML =
+        '<div style="padding:24px;font-family:sans-serif;color:#B0413E;">' +
+        '<h2>This tool failed to start</h2><p>' + (e && e.message ? e.message : e) +
+        '</p><p style="color:#5B6B7A;font-size:13px;">Send this message to Matthew — it means something changed in how the browser runs this file.</p></div>';
+    }
+  })();
+</script>
+</body>
+</html>
