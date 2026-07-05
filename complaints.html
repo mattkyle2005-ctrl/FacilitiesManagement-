@@ -137,7 +137,7 @@ const PRIORITY_OPTIONS = ["Low", "Medium", "High"];
 // Best-guess starting categories — NOT confirmed with Neil. This is an editable
 // list (Settings tab), not a hardcoded enum, precisely so it can be corrected
 // once Neil says how he actually classifies complaints in practice.
-const DEFAULT_CATEGORIES = ["Service Delivery", "Staff Conduct", "Safety & Security", "Infrastructure / Facility Condition", "Billing & Fares", "Scheduling & Reliability", "Other"];
+const DEFAULT_CATEGORIES = ["Service Delivery", "Staff Conduct", "Safety & Security", "Infrastructure / Facility Condition", "Other"];
 // Status pipeline for a complaint's lifecycle, oldest to newest.
 const STATUS_PIPELINE = ["Open", "Acknowledged", "Investigating", "Response Drafted", "Responded", "Closed"];
 // A complaint no longer needs action once it reaches one of these.
@@ -371,10 +371,10 @@ function demoSeed() {
       },
       {
         id: uid(), _demo: true, source: "Internal", complainantName: "Ops Team", contact: "",
-        channel: "Email", facility: "", category: "Billing & Fares", priority: "Medium",
-        description: "Internal note: a fare-machine fault at one facility needs a public-facing response drafted before it goes out.",
+        channel: "Email", facility: "Bellville PTI", category: "Infrastructure / Facility Condition", priority: "Medium",
+        description: "Internal note: escalation from Operations Team regarding facility maintenance coordination.",
         dateReceived: daysAgoStr(1), status: "Response Drafted", assignedTo: "M. Adams",
-        aiDraftResponse: "Draft prepared, awaiting sign-off before sending.", aiDraftOriginal: "Draft prepared, awaiting sign-off before sending.",
+        aiDraftResponse: "Acknowledged and coordinating with relevant teams.", aiDraftOriginal: "Acknowledged and coordinating with relevant teams.",
         photo: null, activity: [{ date: stamp(1), note: "Complaint logged (Open)" }, { date: stamp(1), note: "Status changed to Response Drafted" }],
         dateResponded: null, dateClosed: null
       },
