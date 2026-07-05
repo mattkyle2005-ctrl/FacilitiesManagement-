@@ -1,3 +1,18 @@
+# Neil Arendse Toolkit — Hosted Tools
+
+Standalone, single-file, browser-based tools for the **Public Transportation Facilities Management and Enforcement** unit, City of Cape Town. Each tool is one self-contained HTML file — no login, no install, no build step, no server. Data lives only in the browser's local storage; AI features are optional and call the Anthropic API directly from the browser with a key entered in Settings.
+
+| Tool | File | What it's for |
+|---|---|---|
+| **115 Facilities Monitoring Dashboard** | [`index.html`](./index.html) | Day-to-day operational tracking: inspections, work orders, preventative maintenance, contractor performance, QR deep-links. |
+| **Complaint Manager & AI Response Drafter** | [`complaints.html`](./complaints.html) | Logging and responding to politician/public complaints, with an AI drafter that adapts to Neil's own writing voice. |
+
+Once hosted (see "Enable GitHub Pages" below), both are live at:
+- `https://<your-username>.github.io/<repo-name>/` (Dashboard)
+- `https://<your-username>.github.io/<repo-name>/complaints.html` (Complaint Manager)
+
+---
+
 # 115 Facilities Monitoring Dashboard
 
 A single-file, browser-based dashboard for the **Public Transportation Facilities Management** unit, City of Cape Town. It tracks day-to-day operations across 115 public transport facilities: inspection status, work orders (modelled on the real WhatsApp reporting workflow), preventative maintenance, contractor performance, and per-facility QR deep-links.
@@ -47,10 +62,34 @@ The `.nojekyll` file in this folder tells GitHub Pages to serve everything as-is
 - Because data is per-browser, use **Download full backup (JSON)** periodically — clearing browser data or switching computers otherwise loses everything.
 - Hosting this page publicly exposes only the empty app shell (plus example data), never anyone's real data.
 
+---
+
+# Complaint Manager & AI Response Drafter
+
+A single-file, browser-based tool for logging and responding to politician and public complaints — Neil's #1 daily pain point per the Toolkit's project notes. Deliberately separate from the Dashboard (different job: complaint correspondence, not facility operations), sharing the same design system and hosted alongside it.
+
+## What it does
+
+- **Dashboard (Response Backlog)** — unresolved/overdue-for-response/drafted-but-not-sent counts, politician complaints flagged first regardless of age, an on-demand "Generate Backlog Summary," and workload by official.
+- **Complaints** — full status pipeline (Open → Acknowledged → Investigating → Response Drafted → Responded → Closed), source (Politician/Public/Internal), priority, an activity timeline, and search/filter.
+- **AI-Assisted Intake** — paste a raw complaint (email/WhatsApp/call notes) and Claude extracts category, priority, and facility, pre-filling the form for review before anything is saved.
+- **AI Response Drafter with a Voice Profile** — drafts adapt tone by complaint source (politician vs public vs internal), and — the key feature — can be grounded in **real examples of how Neil actually writes**, pasted into Settings. When Neil edits a draft before marking it Responded, the tool offers to save the edited version as a new example, so drafts keep sounding more like him the more the tool is used.
+- **Import / Export** — CSV template download/upload/paste, JSON backup/restore, and a one-way import of officials from the Dashboard's own JSON backup (no retyping the same team twice).
+
+## Why the Voice Profile, not just a tone switch
+
+An earlier draft of this tool's design used a fixed "formal for politicians, plain for the public" persona switch. That's generic personalization, not real personalization. The Voice Profile replaces/extends it: Neil's own past responses become few-shot examples in the drafting prompt, with the source-based register still applied underneath for structure. No examples yet? Drafts fall back cleanly to the source-based tone alone — the feature is optional and improves gradually from normal use, not something that has to be set up perfectly on day one.
+
+## Categories are a starting guess, not a fixed answer
+
+The default category list (Service Delivery, Staff Conduct, Safety & Security, etc.) is a reasonable guess, **not confirmed with Neil**. It's an editable list in Settings — same add/remove pattern as officials — specifically so it can be corrected once real usage shows how complaints actually get classified in practice.
+
+---
+
 ## Updating the hosted version
 
-Replace `index.html` with a newer build of the dashboard and push. GitHub Pages redeploys automatically within a minute or two. Existing users keep their data — it's in their browser, not in the file.
+Replace `index.html` (Dashboard) or `complaints.html` (Complaint Manager) with a newer build and push. GitHub Pages redeploys automatically within a minute or two. Existing users keep their data — it's in their browser, not in the file.
 
 ## Verifying a change before publishing
 
-Any change to `index.html` should be render-verified (not just syntax-checked) before it goes live — the app mounts entirely into `<div id="root">`, so a mount error is a blank page with no visible message. The project keeps a jsdom harness that executes the transformed code against a DOM under first-open, returning-user, and empty states. See the Neil Arendse Toolkit project notes for details.
+Any change to either tool should be render-verified (not just syntax-checked) before it goes live — each app mounts entirely into `<div id="root">`, so a mount error is a blank page with no visible message. The project keeps a jsdom harness (and, for the Complaint Manager, a standalone unit test of its AI-prompt-building logic) that executes the transformed code against a DOM under first-open, returning-user, and empty states. See the Neil Arendse Toolkit project notes for details.
