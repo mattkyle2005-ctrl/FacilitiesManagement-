@@ -93,3 +93,5 @@ Replace `index.html` (Dashboard) or `complaints.html` (Complaint Manager) with a
 ## Verifying a change before publishing
 
 Any change to either tool should be render-verified (not just syntax-checked) before it goes live — each app mounts entirely into `<div id="root">`, so a mount error is a blank page with no visible message. The project keeps a jsdom harness (and, for the Complaint Manager, a standalone unit test of its AI-prompt-building logic) that executes the transformed code against a DOM under first-open, returning-user, and empty states. See the Neil Arendse Toolkit project notes for details.
+
+<!-- Deployment fix Sun Jul  5 17:08:24 SAST 2026 -->
