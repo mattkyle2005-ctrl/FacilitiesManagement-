@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Meeting Action Item Chaser — City of Cape Town</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  :root{
+    --navy:#1A3A5C;
+    --navy-dark:#122843;
+    --gold:#C9A84C;
+    --gold-dark:#B08F35;
+    --slate:#F0F4F8;
+    --white:#FAFBFD;
+    --ink:#1C2733;
+    --muted:#5B6B7A;
+    --good:#2E7D4F;
+    --warn:#B08F35;
+    --bad:#B0413E;
+    --info:#3A6EA5;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--slate);color:var(--ink);}
+  header.app-header{background:linear-gradient(135deg,var(--navy),var(--navy-dark));color:var(--white);padding:18px 20px;position:sticky;top:0;z-index:20;box-shadow:0 2px 8px rgba(0,0,0,0.15);}
+  header.app-header h1{margin:0;font-size:18px;font-weight:700;letter-spacing:0.2px;}
+  header.app-header p{margin:4px 0 0;font-size:12.5px;color:#CBD8E6;}
+  .header-row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+  .gold-badge{background:var(--gold);color:var(--navy-dark);font-weight:700;font-size:11px;padding:4px 10px;border-radius:999px;letter-spacing:0.3px;}
+  .bad-badge{background:var(--bad);color:#fff;font-weight:700;font-size:11px;padding:4px 10px;border-radius:999px;letter-spacing:0.3px;}
+  nav.tabs{display:flex;gap:4px;background:var(--navy-dark);padding:0 12px;overflow-x:auto;position:sticky;top:64px;z-index:19;}
+  nav.tabs button{background:transparent;border:none;color:#B9C7D6;padding:12px 14px;font-size:13.5px;font-weight:600;cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap;}
+  nav.tabs button.active{color:var(--white);border-bottom:3px solid var(--gold);}
+  main{max-width:1180px;margin:0 auto;padding:18px 14px 60px;}
+  .card{background:var(--white);border-radius:12px;padding:18px;box-shadow:0 1px 3px rgba(20,40,60,0.08);margin-bottom:16px;border:1px solid #E2E9F0;}
+  .card h2{margin-top:0;font-size:15px;color:var(--navy);}
+  .grid{display:grid;gap:14px;}
+  .grid.cols-4{grid-template-columns:repeat(4,1fr);}
+  .grid.cols-3{grid-template-columns:repeat(3,1fr);}
+  .grid.cols-2{grid-template-columns:repeat(2,1fr);}
+  @media(max-width:760px){.grid.cols-4{grid-template-columns:repeat(2,1fr);}.grid.cols-3{grid-template-columns:1fr;}.grid.cols-2{grid-template-columns:1fr;}}
+  .stat{background:var(--slate);border-radius:10px;padding:12px;text-align:center;border:1px solid #E2E9F0;}
+  .stat.alert{background:#FBEDEC;border-color:#F0C9C6;}
+  .stat .num{font-size:22px;font-weight:800;color:var(--navy);}
+  .stat.alert .num{color:var(--bad);}
+  .stat .lbl{font-size:11.5px;color:var(--muted);margin-top:2px;}
+  .badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;color:#fff;}
+  .badge.overdue{background:var(--bad);}
+  .badge.ok{background:var(--good);}
+  .badge.status-NotStarted{background:var(--muted);}
+  .badge.status-InProgress{background:var(--info);}
+  .badge.status-Done{background:var(--good);}
+  .badge.owner-OwnTeam{background:var(--navy);}
+  .badge.owner-OtherDepartment{background:var(--info);}
+  .badge.owner-ContractorExternal{background:var(--muted);}
+  button.btn{background:var(--navy);color:#fff;border:none;padding:9px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;}
+  button.btn:hover{background:var(--navy-dark);}
+  button.btn.gold{background:var(--gold);color:var(--navy-dark);}
+  button.btn.gold:hover{background:var(--gold-dark);}
+  button.btn.ghost{background:transparent;color:var(--navy);border:1px solid #C7D3DE;}
+  button.btn.danger{background:var(--bad);}
+  button.btn.small{padding:5px 10px;font-size:11.5px;}
+  button.btn.big{padding:16px 20px;font-size:15px;width:100%;}
+  button.btn:disabled{opacity:0.5;cursor:not-allowed;}
+  input,select,textarea{font-family:inherit;font-size:13.5px;padding:8px 10px;border-radius:7px;border:1px solid #C7D3DE;width:100%;background:#fff;color:var(--ink);}
+  label{font-size:12px;font-weight:600;color:var(--muted);display:block;margin-bottom:4px;}
+  .field{margin-bottom:10px;}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th{text-align:left;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:0.4px;border-bottom:2px solid #E2E9F0;padding:8px 8px;}
+  td{padding:9px 8px;border-bottom:1px solid #EDF1F5;vertical-align:middle;}
+  tr:hover td{background:#F7FAFC;}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px;}
+  .toolbar input[type=text]{width:220px;}
+  .pill{background:var(--slate);border-radius:999px;padding:6px 12px;font-size:12px;font-weight:600;color:var(--navy);border:1px solid #DCE4EC;}
+  .item-card{background:#fff;border:1px solid #E2E9F0;border-radius:10px;padding:14px;margin-bottom:12px;}
+  .ic-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap;}
+  .ic-name{font-weight:700;font-size:14px;color:var(--navy);}
+  .ic-meta{font-size:11.5px;color:var(--muted);margin-top:2px;}
+  .modal-backdrop{position:fixed;inset:0;background:rgba(20,30,45,0.55);display:flex;align-items:flex-start;justify-content:center;padding:30px 14px;overflow-y:auto;z-index:50;}
+  .modal{background:#fff;border-radius:14px;max-width:560px;width:100%;padding:22px;}
+  .modal.wide{max-width:680px;}
+  .modal h3{margin-top:0;color:var(--navy);}
+  .close-x{float:right;cursor:pointer;font-size:18px;color:var(--muted);background:none;border:none;}
+  .small{font-size:11.5px;color:var(--muted);}
+  .flex{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  .footer-note{text-align:center;color:var(--muted);font-size:11.5px;margin-top:24px;}
+  .bar-row{display:grid;grid-template-columns:140px 1fr 60px;gap:10px;align-items:center;margin-bottom:8px;font-size:12.5px;}
+  .bar-track{background:#E9EEF3;border-radius:6px;height:14px;overflow:hidden;position:relative;display:flex;}
+  .bar-fill{background:var(--info);height:100%;}
+  .bar-fill.overdue{background:var(--bad);}
+  .ai-box{background:#FBF8F0;border:1px solid #EBDDB0;border-radius:8px;padding:12px 14px;margin-top:8px;font-size:13px;color:#5A4A1E;white-space:pre-wrap;}
+  .warn-box{background:#FBEDEC;border:1px solid #F0C9C6;border-radius:8px;padding:12px 14px;margin-top:8px;font-size:12.5px;color:#7A2E2A;}
+  .activity-list{margin-top:10px;border-top:1px solid #EDF1F5;padding-top:8px;}
+  .activity-item{font-size:11.5px;color:var(--muted);padding:3px 0;}
+  .activity-item b{color:var(--ink);}
+  .demo-banner{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:#FBF8F0;border:1px solid #EBDDB0;border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:12.5px;color:#5A4A1E;}
+  .demo-banner button{flex-shrink:0;}
+  .meeting-card{background:#fff;border:1px solid #E2E9F0;border-radius:10px;padding:14px;margin-bottom:14px;}
+  .meeting-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap;}
+  .meeting-title{font-weight:700;font-size:15px;color:var(--navy);}
+  .meeting-meta{font-size:11.5px;color:var(--muted);margin-top:2px;}
+  .draft-box{background:#F6F8FB;border:1px solid #DCE4EC;border-radius:8px;padding:10px;margin-top:8px;}
+  .draft-box textarea{min-height:120px;}
+  .unconfirmed-note{background:#FBEDEC;border:1px solid #F0C9C6;border-radius:8px;padding:10px 12px;font-size:12px;color:#7A2E2A;margin-bottom:14px;}
+  .mobile-only{display:none;}
+  @media(max-width:760px){
+    .desktop-only{display:none;}
+    .mobile-only{display:block;}
+  }
+  @media print{
+    header.app-header, nav.tabs, .no-print{display:none !important;}
+    body{background:#fff;}
+    main{max-width:100%;padding:0;}
+    .card{box-shadow:none;border:1px solid #999;}
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/plain" id="app-source">
+const { useState, useEffect, useMemo, useRef } = React;
+
+const STORAGE_KEY = "neil_action_item_chaser_v1";
+const DEFAULT_MODEL = "claude-sonnet-5";
+const STATUS_OPTIONS = ["Not Started", "In Progress", "Done"];
+const OPEN_STATUSES = ["Not Started", "In Progress"];
+// Who owns an action item determines both the chase-up message's register AND
+// who it should actually be addressed to — unlike the Complaint Manager, where
+// Neil is always the one responding, here the owner is frequently someone else
+// entirely (his own staff, another department, or an external contractor).
+const OWNER_TYPE_OPTIONS = ["Own Team", "Other Department", "Contractor / External"];
+
+function statusClass(status) {
+  return "status-" + String(status).replace(/\s+/g, "");
+}
+function ownerTypeClass(ownerType) {
+  return "owner-" + String(ownerType).replace(/[^A-Za-z]/g, "");
+}
+
+// A pasted API key can pick up invisible artifacts from whatever it was copied
+// out of (smart quotes, zero-width spaces, a BOM, a stray space from line-
+// wrapping) — fetch's Headers throws synchronously ("String contains non
+// ISO-8859-1 code point") if any of these end up in a header value. Real
+// Anthropic keys are always plain printable ASCII with no whitespace, so it's
+// safe to strip anything else before ever building the request.
+function sanitizeApiKey(raw) {
+  return String(raw || "").replace(/\s+/g, "").replace(/[^\x20-\x7E]/g, "");
+}
+
+function friendlyErrorMessage(e) {
+  const msg = e && e.message ? e.message : String(e);
+  if (/ISO-8859-1|code point/i.test(msg)) {
+    return "Your API key contains a character the browser can't send (likely from copy-pasting). Try deleting it in Settings and re-typing or re-pasting it fresh.";
+  }
+  return msg;
+}
+
+async function callClaude(apiKey, model, prompt) {
+  const cleanKey = sanitizeApiKey(apiKey);
+  const resp = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-api-key": cleanKey,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true"
+    },
+    body: JSON.stringify({
+      model: model,
+      max_tokens: 700,
+      messages: [{ role: "user", content: prompt }]
+    })
+  });
+  if (!resp.ok) {
+    const errText = await resp.text();
+    throw new Error("API error " + resp.status + ": " + errText.slice(0, 300));
+  }
+  const data = await resp.json();
+  const text = (data.content && data.content[0] && data.content[0].text) || "";
+  return text;
+}
+
+// Register guidance by owner type — the core differentiator from the Complaint
+// Manager's drafter. There, Neil is always the sender responding to someone
+// external. Here, the message's ADDRESSEE and appropriate tone both shift: a
+// chase-up to Neil's own staff can be direct and operational; a chase-up to
+// another department or an external contractor needs more formal, CC-aware
+// framing since Neil doesn't manage that person.
+const OWNER_TYPE_REGISTER = {
+  "Own Team": "The owner of this action item is one of Neil's own monitoring officials or staff. Write a short, direct, operational chase-up — as a manager following up with their own team member. No need for excessive formality, but be clear about the commitment and the deadline.",
+  "Other Department": "The owner of this action item is someone in another department (not Neil's own team). Write a polite, professional chase-up that acknowledges this is a cross-department dependency — reference the meeting where it was agreed, avoid sounding like a demand, and invite a quick status update.",
+  "Contractor / External": "The owner of this action item is an external contractor or third party. Write a formal, professional chase-up referencing the agreed commitment and date, and ask for a clear status update or revised timeline. Keep a constructive but firm tone appropriate for a service-delivery relationship."
+};
+
+// Pure, directly-testable function — builds the chase-up message prompt. This
+// is the tool's core AI feature: drafting a follow-up addressed TO the item's
+// owner (who is often not Neil), referencing the specific meeting it came from.
+function buildChaseUpPrompt(item, meeting, notes) {
+  const register = OWNER_TYPE_REGISTER[item.ownerType] || OWNER_TYPE_REGISTER["Own Team"];
+  const meetingLabel = (meeting && meeting.title) || "a recent meeting";
+  const meetingDate = (meeting && meeting.date) || "an earlier date";
+  const styleNotes = (notes || "").trim();
+  let styleBlock = "";
+  if (styleNotes) {
+    styleBlock = "\n\nStyle notes to follow: " + styleNotes;
+  }
+  return "You are drafting a short follow-up (chase-up) message on behalf of Neil Arendse, Senior Manager: Public Transportation Facilities Management and Enforcement, City of Cape Town, addressed TO the person who owns the action item below (not to Neil himself).\n\n"
+    + register + styleBlock
+    + "\n\nMeeting: " + meetingLabel + " (" + meetingDate + ")\n"
+    + "Action item owner: " + (item.owner || "(owner not specified)") + "\n"
+    + "Commitment: " + item.description + "\n"
+    + "Due date: " + (item.dueDate || "not set") + "\n"
+    + "Current status: " + item.status + "\n\n"
+    + "Write only the message text itself (no subject line, no explanation of your reasoning).";
+}
+
+// Pure function building the notes-extraction prompt. Unlike the Complaint
+// Manager's AI intake (one paste -> one complaint), a single meeting's notes
+// typically contain SEVERAL action items at once, so this asks Claude to
+// return an array, not a single object.
+function buildExtractActionItemsPrompt(rawNotes) {
+  return "Extract a list of action items / follow-ups from these raw meeting notes (pasted from typed notes, an email summary, or similar). "
+    + "Respond with ONLY a JSON array, no other text, where each element matches exactly this shape:\n"
+    + '{"description": "a clean one-sentence description of the commitment", "owner": "name of the person responsible, or empty string if not stated", "dueDate": "YYYY-MM-DD if a date/deadline is mentioned or implied, otherwise empty string"}\n\n'
+    + "Only include genuine commitments or follow-ups (someone agreeing to do something), not general discussion points.\n\n"
+    + "Raw notes:\n\"\"\"\n" + rawNotes + "\n\"\"\"";
+}
+
+// Tolerant JSON parse for an ARRAY response — mirrors the Complaint Manager's
+// parseExtractedJSON but expects a top-level array rather than an object.
+function parseExtractedItemsJSON(raw) {
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch (e) {
+    const match = raw.match(/\[[\s\S]*\]/);
+    if (match) {
+      try {
+        const parsed = JSON.parse(match[0]);
+        return Array.isArray(parsed) ? parsed : null;
+      } catch (e2) { /* fall through */ }
+    }
+    return null;
+  }
+}
+
+function downloadFile(filename, content, mime) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function toCSVValue(v) {
+  if (v === undefined || v === null) return "";
+  const s = String(v);
+  if (s.includes(",") || s.includes('"') || s.includes("\n")) {
+    return '"' + s.replace(/"/g, '""') + '"';
+  }
+  return s;
+}
+
+function uid() {
+  if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
+  return "id-" + Math.random().toString(36).slice(2) + Date.now();
+}
+
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function nowStamp() {
+  return new Date().toISOString();
+}
+
+function daysUntil(dueDateStr) {
+  if (!dueDateStr) return null;
+  const due = new Date(dueDateStr + "T00:00:00");
+  if (isNaN(due.getTime())) return null;
+  const today = new Date(todayStr() + "T00:00:00");
+  return Math.round((due.getTime() - today.getTime()) / 86400000);
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch (e) {
+    console.error("Failed to load saved state", e);
+    return null;
+  }
+}
+
+function saveState(state) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch (e) {
+    console.error("Failed to save state", e);
+  }
+}
+
+// Example data shown on the very first open so the tool isn't a blank shell.
+// Every seeded record carries `_demo: true` so it can be cleared in one click.
+function demoSeed() {
+  function daysAgoStr(n) {
+    const d = new Date();
+    d.setDate(d.getDate() - n);
+    return d.toISOString().slice(0, 10);
+  }
+  function daysFromNowStr(n) {
+    const d = new Date();
+    d.setDate(d.getDate() + n);
+    return d.toISOString().slice(0, 10);
+  }
+  function stamp(n) {
+    const d = new Date();
+    d.setDate(d.getDate() - n);
+    return d.toISOString();
+  }
+  const m1 = uid(), m2 = uid(), m3 = uid();
+  return {
+    meetings: [
+      { id: m1, _demo: true, date: daysAgoStr(10), title: "Weekly Ops Meeting — Facilities & Enforcement", attendees: "N. Arendse, M. Adams, J. Petersen", notesRaw: "" },
+      { id: m2, _demo: true, date: daysAgoStr(4), title: "Contractor Review — ABC Electrical", attendees: "N. Arendse, ABC Electrical (site rep)", notesRaw: "" },
+      { id: m3, _demo: true, date: daysAgoStr(1), title: "Cross-Department Sync — Water & Sanitation", attendees: "N. Arendse, W&S liaison", notesRaw: "" }
+    ],
+    actionItems: [
+      {
+        id: uid(), _demo: true, meetingId: m1, description: "Submit updated inspection roster for Q3", owner: "M. Adams", ownerType: "Own Team",
+        dueDate: daysAgoStr(3), status: "Not Started", chaseUpDraft: "", chaseUpDraftOriginal: "",
+        activity: [{ date: stamp(10), note: "Action item logged (Not Started)" }]
+      },
+      {
+        id: uid(), _demo: true, meetingId: m1, description: "Follow up with SAPS on Wynberg site security incident", owner: "J. Petersen", ownerType: "Own Team",
+        dueDate: daysFromNowStr(2), status: "In Progress", chaseUpDraft: "", chaseUpDraftOriginal: "",
+        activity: [{ date: stamp(10), note: "Action item logged (Not Started)" }, { date: stamp(5), note: "Status changed to In Progress" }]
+      },
+      {
+        id: uid(), _demo: true, meetingId: m2, description: "Repair faulty lighting circuit at Bellville PTI and confirm sign-off", owner: "ABC Electrical", ownerType: "Contractor / External",
+        dueDate: daysAgoStr(1), status: "In Progress",
+        chaseUpDraft: "Good day,\n\nFollowing our review on " + daysAgoStr(4) + ", could you please confirm progress on the Bellville PTI lighting circuit repair? The agreed date has now passed. A short status update or revised timeline would be appreciated.\n\nKind regards,\nNeil Arendse",
+        chaseUpDraftOriginal: "Good day,\n\nFollowing our review on " + daysAgoStr(4) + ", could you please confirm progress on the Bellville PTI lighting circuit repair? The agreed date has now passed. A short status update or revised timeline would be appreciated.\n\nKind regards,\nNeil Arendse",
+        activity: [{ date: stamp(4), note: "Action item logged (Not Started)" }, { date: stamp(2), note: "Status changed to In Progress" }]
+      },
+      {
+        id: uid(), _demo: true, meetingId: m3, description: "Provide updated maintenance schedule for shared ablution facilities", owner: "W&S liaison", ownerType: "Other Department",
+        dueDate: daysFromNowStr(5), status: "Not Started", chaseUpDraft: "", chaseUpDraftOriginal: "",
+        activity: [{ date: stamp(1), note: "Action item logged (Not Started)" }]
+      },
+      {
+        id: uid(), _demo: true, meetingId: m3, description: "Confirm attendance list for next joint facilities walkthrough", owner: "N. Arendse", ownerType: "Own Team",
+        dueDate: daysAgoStr(6), status: "Done", chaseUpDraft: "", chaseUpDraftOriginal: "",
+        activity: [{ date: stamp(1), note: "Action item logged (Not Started)" }, { date: stamp(0), note: "Status changed to Done" }]
+      }
+    ]
+  };
+}
+
+function StatCard({ num, label, alert }) {
+  return (
+    <div className={"stat" + (alert ? " alert" : "")}>
+      <div className="num">{num}</div>
+      <div className="lbl">{label}</div>
+    </div>
+  );
+}
+
+function ActionItemForm({ initial, prefill, meetingId, apiKey, model, chaseUpNotes, meetings, onSave, onCancel }) {
+  const [it, setIt] = useState(initial || {
+    id: uid(), meetingId: meetingId, description: "", owner: "", ownerType: "Own Team",
+    dueDate: todayStr(), status: "Not Started", chaseUpDraft: "", chaseUpDraftOriginal: "",
+    activity: [], ...(prefill || {})
+  });
+  const [draftBusy, setDraftBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const set = (k, v) => setIt(prev => ({ ...prev, [k]: v }));
+  const meeting = meetings.find(m => m.id === it.meetingId);
+
+  async function copyDraftToClipboard() {
+    try {
+      await navigator.clipboard.writeText(it.chaseUpDraft);
+    } catch (e) {
+      const ta = document.createElement("textarea");
+      ta.value = it.chaseUpDraft;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      try { document.execCommand("copy"); } catch (e2) { /* nothing more to do */ }
+      document.body.removeChild(ta);
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  async function generateChaseUp() {
+    if (!apiKey) { alert("Add your Anthropic API key in Settings first."); return; }
+    setDraftBusy(true);
+    try {
+      const prompt = buildChaseUpPrompt(it, meeting, chaseUpNotes);
+      const draft = await callClaude(apiKey, model, prompt);
+      set("chaseUpDraft", draft.trim());
+      set("chaseUpDraftOriginal", draft.trim());
+    } catch (e) {
+      alert("Chase-up generation failed: " + friendlyErrorMessage(e));
+    } finally {
+      setDraftBusy(false);
+    }
+  }
+
+  function handleSave() {
+    onSave(it);
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}>
+      <div className="modal wide">
+        <button className="close-x" onClick={onCancel}>✕</button>
+        <h3>{initial ? "Edit Action Item" : "Log Action Item"}</h3>
+        <div className="grid cols-2">
+          <div className="field">
+            <label>Owner</label>
+            <input type="text" value={it.owner} onChange={e => set("owner", e.target.value)} placeholder="e.g. M. Adams or ABC Electrical" />
+          </div>
+          <div className="field">
+            <label>Owner type</label>
+            <select value={it.ownerType} onChange={e => set("ownerType", e.target.value)}>
+              {OWNER_TYPE_OPTIONS.map(o => <option key={o}>{o}</option>)}
+            </select>
+          </div>
+          <div className="field">
+            <label>Due date</label>
+            <input type="date" value={it.dueDate} onChange={e => set("dueDate", e.target.value)} />
+          </div>
+          <div className="field">
+            <label>Status</label>
+            <select value={it.status} onChange={e => set("status", e.target.value)}>
+              {STATUS_OPTIONS.map(s => <option key={s}>{s}</option>)}
+            </select>
+          </div>
+        </div>
+        <div className="field">
+          <label>What was agreed</label>
+          <textarea rows="3" value={it.description} onChange={e => set("description", e.target.value)} placeholder="e.g. Submit updated inspection roster for Q3" />
+        </div>
+        <div className="draft-box">
+          <div className="flex" style={{ justifyContent: "space-between" }}>
+            <label style={{ marginBottom: 0 }}>Chase-Up Message Draft</label>
+            <button className="btn ghost small" onClick={generateChaseUp} disabled={draftBusy || !it.description.trim()}>
+              {draftBusy ? "Drafting..." : (it.chaseUpDraft ? "Regenerate Draft" : "Draft Chase-Up")}
+            </button>
+          </div>
+          {!it.description.trim() ? (
+            <p className="small" style={{ color: "var(--bad)" }}>Add what was agreed above first — the button is disabled until there's something to chase up.</p>
+          ) : (
+            <p className="small">Addressed to the owner ({it.owner || "not yet named"}), tone adapts to owner type ({it.ownerType}).</p>
+          )}
+          <textarea rows="6" value={it.chaseUpDraft} onChange={e => set("chaseUpDraft", e.target.value)} placeholder="Click Draft Chase-Up, or write one manually here..." />
+          {it.chaseUpDraft && (
+            <div className="flex" style={{ marginTop: "8px" }}>
+              <button className="btn ghost small" onClick={copyDraftToClipboard}>{copied ? "Copied!" : "Copy Message"}</button>
+            </div>
+          )}
+        </div>
+        {it.activity && it.activity.length > 0 && (
+          <div className="activity-list">
+            <label>History</label>
+            {it.activity.slice().reverse().map((a, i) => (
+              <div className="activity-item" key={i}><b>{new Date(a.date).toLocaleString()}</b> — {a.note}</div>
+            ))}
+          </div>
+        )}
+        <div className="flex" style={{ justifyContent: "flex-end", marginTop: "10px" }}>
+          <button className="btn ghost" onClick={onCancel}>Cancel</button>
+          <button className="btn gold" disabled={!it.description.trim()} onClick={handleSave}>Save Action Item</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MeetingForm({ initial, onSave, onCancel }) {
+  const [m, setM] = useState(initial || { id: uid(), date: todayStr(), title: "", attendees: "", notesRaw: "" });
+  const set = (k, v) => setM(prev => ({ ...prev, [k]: v }));
+  return (
+    <div className="modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}>
+      <div className="modal">
+        <button className="close-x" onClick={onCancel}>✕</button>
+        <h3>{initial ? "Edit Meeting" : "Log a Meeting"}</h3>
+        <div className="field">
+          <label>Date</label>
+          <input type="date" value={m.date} onChange={e => set("date", e.target.value)} />
+        </div>
+        <div className="field">
+          <label>Title / topic</label>
+          <input type="text" value={m.title} onChange={e => set("title", e.target.value)} placeholder="e.g. Weekly Ops Meeting" />
+        </div>
+        <div className="field">
+          <label>Attendees</label>
+          <input type="text" value={m.attendees} onChange={e => set("attendees", e.target.value)} placeholder="e.g. N. Arendse, M. Adams" />
+        </div>
+        <div className="flex" style={{ justifyContent: "flex-end", marginTop: "10px" }}>
+          <button className="btn ghost" onClick={onCancel}>Cancel</button>
+          <button className="btn gold" disabled={!m.title.trim()} onClick={() => onSave(m)}>Save Meeting</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const saved = loadState();
+  // First-ever open (nothing saved yet): start with example data so the tool
+  // isn't an empty shell. Everything seeded is flagged _demo and clears in one click.
+  const seed = saved || demoSeed();
+  const [meetings, setMeetings] = useState(seed.meetings || []);
+  const [actionItems, setActionItems] = useState(seed.actionItems || []);
+  const [apiKey, setApiKey] = useState(saved && saved.apiKey ? saved.apiKey : "");
+  const [model, setModel] = useState(saved && saved.model ? saved.model : DEFAULT_MODEL);
+  const [chaseUpNotes, setChaseUpNotes] = useState(saved && saved.chaseUpNotes ? saved.chaseUpNotes : "");
+
+  const [tab, setTab] = useState("dashboard");
+  const [showMeetingForm, setShowMeetingForm] = useState(false);
+  const [editingMeeting, setEditingMeeting] = useState(null);
+  const [showItemForm, setShowItemForm] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
+  const [itemMeetingId, setItemMeetingId] = useState(null);
+  const [prefillForItemForm, setPrefillForItemForm] = useState(null);
+  const [expandedMeeting, setExpandedMeeting] = useState(null);
+  const [notesTextByMeeting, setNotesTextByMeeting] = useState({});
+  const [extractBusyByMeeting, setExtractBusyByMeeting] = useState({});
+  const [pendingExtractedItems, setPendingExtractedItems] = useState(null);
+
+  useEffect(() => {
+    saveState({ meetings, actionItems, apiKey, model, chaseUpNotes });
+  }, [meetings, actionItems, apiKey, model, chaseUpNotes]);
+
+  const enrichedItems = useMemo(() => {
+    return actionItems.map(it => {
+      const daysLeft = daysUntil(it.dueDate);
+      const open = OPEN_STATUSES.includes(it.status);
+      const overdue = open && daysLeft !== null && daysLeft < 0;
+      const meeting = meetings.find(m => m.id === it.meetingId);
+      return { ...it, daysLeft, overdue, meetingTitle: meeting ? meeting.title : "(meeting deleted)", meetingDate: meeting ? meeting.date : "" };
+    });
+  }, [actionItems, meetings]);
+
+  // Action Item Backlog — the cross-meeting view Matthew confirmed Neil needs,
+  // analogous to the Complaint Manager's Response Backlog but built around this
+  // tool's own bottleneck: items overdue by due date, regardless of which
+  // meeting they came from.
+  const summary = useMemo(() => {
+    const open = enrichedItems.filter(it => OPEN_STATUSES.includes(it.status));
+    const overdueCount = open.filter(it => it.overdue).length;
+    const dueSoonCount = open.filter(it => !it.overdue && it.daysLeft !== null && it.daysLeft <= 3).length;
+    return { total: enrichedItems.length, openCount: open.length, overdueCount, dueSoonCount };
+  }, [enrichedItems]);
+
+  const backlogList = useMemo(() => {
+    return enrichedItems
+      .filter(it => OPEN_STATUSES.includes(it.status) && (it.overdue || (it.daysLeft !== null && it.daysLeft <= 3)))
+      .sort((a, b) => (a.daysLeft === null ? 999 : a.daysLeft) - (b.daysLeft === null ? 999 : b.daysLeft));
+  }, [enrichedItems]);
+
+  const workload = useMemo(() => {
+    const map = {};
+    enrichedItems.forEach(it => {
+      if (!OPEN_STATUSES.includes(it.status)) return;
+      const key = it.owner || "Unassigned";
+      if (!map[key]) map[key] = { total: 0, overdue: 0 };
+      map[key].total += 1;
+      if (it.overdue) map[key].overdue += 1;
+    });
+    return Object.entries(map).sort((a, b) => b[1].total - a[1].total);
+  }, [enrichedItems]);
+  const maxWorkload = Math.max(1, ...workload.map(([, v]) => v.total));
+
+  function saveMeeting(m) {
+    setMeetings(prev => {
+      const exists = prev.some(p => p.id === m.id);
+      if (exists) return prev.map(p => p.id === m.id ? m : p);
+      return [...prev, m];
+    });
+    setShowMeetingForm(false);
+    setEditingMeeting(null);
+  }
+
+  function deleteMeeting(id) {
+    if (!window.confirm("Delete this meeting and all its action items? This cannot be undone.")) return;
+    setMeetings(prev => prev.filter(m => m.id !== id));
+    setActionItems(prev => prev.filter(it => it.meetingId !== id));
+  }
+
+  function saveActionItem(it) {
+    setActionItems(prev => {
+      const exists = prev.some(p => p.id === it.id);
+      if (exists) return prev.map(p => p.id === it.id ? it : p);
+      return [...prev, { ...it, activity: it.activity && it.activity.length ? it.activity : [{ date: nowStamp(), note: "Action item logged (" + it.status + ")" }] }];
+    });
+    setShowItemForm(false);
+    setEditingItem(null);
+    setPrefillForItemForm(null);
+  }
+
+  function deleteActionItem(id) {
+    if (!window.confirm("Delete this action item? This cannot be undone.")) return;
+    setActionItems(prev => prev.filter(it => it.id !== id));
+  }
+
+  function updateItemStatus(id, newStatus) {
+    setActionItems(prev => prev.map(it => {
+      if (it.id !== id) return it;
+      return {
+        ...it, status: newStatus,
+        activity: [...(it.activity || []), { date: nowStamp(), note: "Status changed to " + newStatus }]
+      };
+    }));
+  }
+
+  const hasDemo = useMemo(() => meetings.some(m => m._demo) || actionItems.some(it => it._demo), [meetings, actionItems]);
+
+  function clearDemoData() {
+    if (!window.confirm("Clear the example meetings and action items and start fresh?\n\nAnything you've already added yourself is kept.")) return;
+    setMeetings(prev => prev.filter(m => !m._demo));
+    setActionItems(prev => prev.filter(it => !it._demo));
+  }
+
+  async function extractItemsFromNotes(meetingId) {
+    if (!apiKey) { alert("Add your Anthropic API key in Settings first."); setTab("settings"); return; }
+    const rawText = (notesTextByMeeting[meetingId] || "").trim();
+    if (!rawText) return;
+    setExtractBusyByMeeting(prev => ({ ...prev, [meetingId]: true }));
+    try {
+      const prompt = buildExtractActionItemsPrompt(rawText);
+      const raw = await callClaude(apiKey, model, prompt);
+      const parsed = parseExtractedItemsJSON(raw);
+      if (!parsed || parsed.length === 0) {
+        alert("Could not extract any action items from that text — you can still log them manually with + Log Action Item.");
+      } else {
+        setPendingExtractedItems({ meetingId, items: parsed });
+      }
+    } catch (e) {
+      alert("Extraction failed: " + friendlyErrorMessage(e));
+    } finally {
+      setExtractBusyByMeeting(prev => ({ ...prev, [meetingId]: false }));
+    }
+  }
+
+  function confirmExtractedItems() {
+    if (!pendingExtractedItems) return;
+    const { meetingId, items } = pendingExtractedItems;
+    const now = nowStamp();
+    const newItems = items.map(raw => ({
+      id: uid(), meetingId, description: raw.description || "", owner: raw.owner || "", ownerType: "Own Team",
+      dueDate: raw.dueDate || "", status: "Not Started", chaseUpDraft: "", chaseUpDraftOriginal: "",
+      activity: [{ date: now, note: "Action item logged (via AI notes extraction)" }]
+    })).filter(it => it.description.trim());
+    setActionItems(prev => [...prev, ...newItems]);
+    setPendingExtractedItems(null);
+    setNotesTextByMeeting(prev => ({ ...prev, [meetingId]: "" }));
+  }
+
+  function exportItemsCSV() {
+    const header = ["Meeting", "MeetingDate", "Owner", "OwnerType", "Description", "DueDate", "DaysLeft", "Overdue", "Status"];
+    const lines = [header.join(",")];
+    enrichedItems.forEach(it => {
+      lines.push([
+        toCSVValue(it.meetingTitle), toCSVValue(it.meetingDate), toCSVValue(it.owner), toCSVValue(it.ownerType),
+        toCSVValue(it.description), toCSVValue(it.dueDate), it.daysLeft === null ? "unknown" : it.daysLeft,
+        it.overdue ? "YES" : "no", toCSVValue(it.status)
+      ].join(","));
+    });
+    downloadFile("action_items_" + todayStr() + ".csv", lines.join("\n"), "text/csv");
+  }
+
+  function exportJSONBackup() {
+    const payload = { meetings, actionItems, model, chaseUpNotes, exportedAt: new Date().toISOString() };
+    downloadFile("action_item_chaser_backup_" + todayStr() + ".json", JSON.stringify(payload, null, 2), "application/json");
+  }
+
+  function importJSONBackup(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const data = JSON.parse(evt.target.result);
+        if (!window.confirm("This will replace all current meetings, action items and settings with the backup file. Continue?")) return;
+        setMeetings(data.meetings || []);
+        setActionItems(data.actionItems || []);
+        if (data.model) setModel(data.model);
+        setChaseUpNotes(data.chaseUpNotes || "");
+        alert("Backup restored.");
+      } catch (err) {
+        alert("Could not read that file — is it a valid backup JSON?");
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  }
+
+  const jsonInputRef = useRef(null);
+
+  return (
+    <React.Fragment>
+      <header className="app-header">
+        <div className="header-row">
+          <div>
+            <h1>Meeting Action Item Chaser</h1>
+            <p>Public Transportation Facilities Management — City of Cape Town</p>
+          </div>
+          <span className="gold-badge">{meetings.length} meeting{meetings.length === 1 ? "" : "s"} · {actionItems.length} action item{actionItems.length === 1 ? "" : "s"}</span>
+        </div>
+      </header>
+      <nav className="tabs">
+        <button className={tab === "dashboard" ? "active" : ""} onClick={() => setTab("dashboard")}>Dashboard</button>
+        <button className={tab === "meetings" ? "active" : ""} onClick={() => setTab("meetings")}>Meetings</button>
+        <button className={tab === "import" ? "active" : ""} onClick={() => setTab("import")}>Import / Export</button>
+        <button className={tab === "settings" ? "active" : ""} onClick={() => setTab("settings")}>Settings</button>
+      </nav>
+      <main>
+        {hasDemo && (
+          <div className="demo-banner no-print">
+            <span><b>Example data loaded.</b> These are sample meetings and action items so you can explore how the tool works. When you're ready, clear them and log your own on the Meetings tab.</span>
+            <button className="btn small gold" onClick={clearDemoData}>Clear example data</button>
+          </div>
+        )}
+        {tab === "dashboard" && (
+          <React.Fragment>
+            <div className="grid cols-4">
+              <StatCard num={summary.openCount} label="Open action items" />
+              <StatCard num={summary.overdueCount} label="Overdue" alert={summary.overdueCount > 0} />
+              <StatCard num={summary.dueSoonCount} label="Due within 3 days" alert={summary.dueSoonCount > 0} />
+              <StatCard num={meetings.length} label="Meetings logged" />
+            </div>
+            <div className="card">
+              <h2>Action Item Backlog</h2>
+              <p className="small">Every overdue or due-soon item across all meetings, in one place — sorted most-urgent-first regardless of which meeting it came from.</p>
+              {backlogList.length === 0 && <p className="small">Nothing overdue or due soon right now.</p>}
+              {backlogList.map(it => (
+                <div className="item-card" key={it.id}>
+                  <div className="ic-top">
+                    <div>
+                      <div className="ic-name">{it.description}</div>
+                      <div className="ic-meta">{it.meetingTitle} · Owner: {it.owner || "(unassigned)"} <span className={"badge " + ownerTypeClass(it.ownerType)}>{it.ownerType}</span></div>
+                    </div>
+                    <span className={"badge " + (it.overdue ? "overdue" : "ok")}>
+                      {it.overdue ? Math.abs(it.daysLeft) + "d overdue" : it.daysLeft + "d left"}
+                    </span>
+                  </div>
+                  <div className="flex" style={{ marginTop: "8px" }}>
+                    <button className="btn ghost small" onClick={() => { setEditingItem(it); setShowItemForm(true); }}>Open / Draft Chase-Up</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="card">
+              <h2>Workload by Owner</h2>
+              <p className="small">Open action item count per owner, with overdue count highlighted — spot an overloaded owner (or department/contractor) before it becomes a problem.</p>
+              {workload.length === 0 && <p className="small">No open action items yet.</p>}
+              {workload.map(([name, v]) => (
+                <div className="bar-row" key={name}>
+                  <div>{name}</div>
+                  <div className="bar-track">
+                    <div className={"bar-fill" + (v.overdue > 0 ? " overdue" : "")} style={{ width: (v.total / maxWorkload * 100) + "%" }}></div>
+                  </div>
+                  <div className="small">{v.total} ({v.overdue} overdue)</div>
+                </div>
+              ))}
+            </div>
+          </React.Fragment>
+        )}
+        {tab === "meetings" && (
+          <React.Fragment>
+            <div className="toolbar">
+              <button className="btn gold" onClick={() => { setEditingMeeting(null); setShowMeetingForm(true); }}>+ Log Meeting</button>
+              <span className="pill">{meetings.length} meeting{meetings.length === 1 ? "" : "s"}</span>
+            </div>
+            {meetings.length === 0 && <p className="small">No meetings logged yet.</p>}
+            {meetings.slice().sort((a, b) => (b.date || "").localeCompare(a.date || "")).map(m => {
+              const items = enrichedItems.filter(it => it.meetingId === m.id);
+              const isExpanded = expandedMeeting === m.id;
+              return (
+                <div className="meeting-card" key={m.id}>
+                  <div className="meeting-head">
+                    <div>
+                      <div className="meeting-title">{m.title}</div>
+                      <div className="meeting-meta">{m.date} · {m.attendees || "no attendees noted"} · {items.length} action item{items.length === 1 ? "" : "s"}</div>
+                    </div>
+                    <div className="flex">
+                      <button className="btn ghost small" onClick={() => setExpandedMeeting(isExpanded ? null : m.id)}>{isExpanded ? "Collapse" : "Expand"}</button>
+                      <button className="btn ghost small" onClick={() => { setEditingMeeting(m); setShowMeetingForm(true); }}>Edit</button>
+                      <button className="btn danger small" onClick={() => deleteMeeting(m.id)}>Delete</button>
+                    </div>
+                  </div>
+                  {isExpanded && (
+                    <React.Fragment>
+                      <div className="draft-box" style={{ marginTop: "10px" }}>
+                        <label style={{ marginBottom: "4px" }}>AI Notes Extraction</label>
+                        <p className="small">Paste raw notes from this meeting — Claude extracts a list of action items (owner, description, due date) for you to review before saving. Nothing is saved automatically.</p>
+                        <textarea rows="3" value={notesTextByMeeting[m.id] || ""} onChange={e => setNotesTextByMeeting(prev => ({ ...prev, [m.id]: e.target.value }))} placeholder="Paste meeting notes here..." />
+                        <div className="flex" style={{ marginTop: "8px" }}>
+                          <button className="btn gold small" disabled={!(notesTextByMeeting[m.id] || "").trim() || extractBusyByMeeting[m.id]} onClick={() => extractItemsFromNotes(m.id)}>
+                            {extractBusyByMeeting[m.id] ? "Extracting..." : "Extract Action Items"}
+                          </button>
+                        </div>
+                      </div>
+                      <div className="flex" style={{ marginTop: "10px" }}>
+                        <button className="btn gold small" onClick={() => { setEditingItem(null); setPrefillForItemForm(null); setItemMeetingId(m.id); setShowItemForm(true); }}>+ Log Action Item</button>
+                      </div>
+                      {items.length === 0 && <p className="small" style={{ marginTop: "8px" }}>No action items logged for this meeting yet.</p>}
+                      {items.map(it => (
+                        <div className="item-card" key={it.id} style={{ marginTop: "10px" }}>
+                          <div className="ic-top">
+                            <div>
+                              <div className="ic-name">{it.description}</div>
+                              <div className="ic-meta">Owner: {it.owner || "(unassigned)"} <span className={"badge " + ownerTypeClass(it.ownerType)}>{it.ownerType}</span></div>
+                            </div>
+                            <span className={"badge " + (it.overdue ? "overdue" : "ok")}>
+                              {it.dueDate ? (it.overdue ? Math.abs(it.daysLeft) + "d overdue" : it.daysLeft + "d left") : "no due date"}
+                            </span>
+                          </div>
+                          <div className="flex" style={{ marginTop: "8px" }}>
+                            <select style={{ width: "150px" }} value={it.status} onChange={e => updateItemStatus(it.id, e.target.value)}>
+                              {STATUS_OPTIONS.map(s => <option key={s}>{s}</option>)}
+                            </select>
+                            <button className="btn ghost small" onClick={() => { setEditingItem(it); setShowItemForm(true); }}>Edit / Chase-Up</button>
+                            <button className="btn danger small" onClick={() => deleteActionItem(it.id)}>Delete</button>
+                          </div>
+                        </div>
+                      ))}
+                    </React.Fragment>
+                  )}
+                </div>
+              );
+            })}
+          </React.Fragment>
+        )}
+        {tab === "import" && (
+          <React.Fragment>
+            <div className="card">
+              <h2>Export</h2>
+              <div className="flex">
+                <button className="btn" onClick={exportItemsCSV}>Export Action Items CSV</button>
+              </div>
+              <div className="flex" style={{ marginTop: "8px" }}>
+                <button className="btn ghost" onClick={exportJSONBackup}>Download full backup (JSON)</button>
+                <button className="btn ghost" onClick={() => jsonInputRef.current.click()}>Restore from backup (JSON)</button>
+                <input type="file" accept="application/json" ref={jsonInputRef} style={{ display: "none" }} onChange={importJSONBackup} />
+              </div>
+              <p className="small" style={{ marginTop: "8px" }}>Data lives only in this browser's local storage. Download a JSON backup periodically — clearing browser data or switching computers will lose everything otherwise.</p>
+            </div>
+          </React.Fragment>
+        )}
+        {tab === "settings" && (
+          <React.Fragment>
+            <div className="unconfirmed-note">
+              <b>Not yet confirmed with Neil:</b> the "Own Team / Other Department / Contractor / External" owner-type split is a best guess about who chase-up messages actually need to go to. Adjust the options above (in code) once real usage shows whether this three-way split matches how Neil actually thinks about it.
+            </div>
+            <div className="card">
+              <h2>Chase-Up Style Notes</h2>
+              <p className="small">Optional free-text notes applied to every chase-up draft, on top of the owner-type register (e.g. sign-off phrasing, preferred greeting).</p>
+              <div className="field">
+                <textarea rows="3" value={chaseUpNotes} onChange={e => setChaseUpNotes(e.target.value)} placeholder="e.g. sign off 'Kind regards, Neil Arendse, Senior Manager: PT Facilities & Enforcement'" />
+              </div>
+            </div>
+            <div className="card">
+              <h2>Anthropic API (for Chase-Up Drafting &amp; Notes Extraction)</h2>
+              <div className="field">
+                <label>API Key</label>
+                <input type="password" value={apiKey} onChange={e => setApiKey(sanitizeApiKey(e.target.value))} placeholder="sk-ant-..." />
+                <p className="small">Pasted keys are cleaned automatically (stray spaces or invisible characters from copy/paste are stripped).</p>
+              </div>
+              <div className="field">
+                <label>Model</label>
+                <input type="text" value={model} onChange={e => setModel(e.target.value)} />
+                <p className="small">Default is claude-sonnet-5. Update this if Anthropic renames or retires the model.</p>
+              </div>
+              <p className="small">Your key is stored only in this browser's local storage and sent directly to Anthropic's API — never through any other server.</p>
+            </div>
+          </React.Fragment>
+        )}
+        <p className="footer-note">Neil Arendse Toolkit — Meeting Action Item Chaser v1 · Data stored locally in this browser only.</p>
+      </main>
+      {showMeetingForm && (
+        <MeetingForm
+          initial={editingMeeting}
+          onSave={saveMeeting}
+          onCancel={() => { setShowMeetingForm(false); setEditingMeeting(null); }}
+        />
+      )}
+      {showItemForm && (
+        <ActionItemForm
+          initial={editingItem}
+          prefill={prefillForItemForm}
+          meetingId={editingItem ? editingItem.meetingId : itemMeetingId}
+          apiKey={apiKey}
+          model={model}
+          chaseUpNotes={chaseUpNotes}
+          meetings={meetings}
+          onSave={saveActionItem}
+          onCancel={() => { setShowItemForm(false); setEditingItem(null); setPrefillForItemForm(null); }}
+        />
+      )}
+      {pendingExtractedItems && (
+        <div className="modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) setPendingExtractedItems(null); }}>
+          <div className="modal wide">
+            <button className="close-x" onClick={() => setPendingExtractedItems(null)}>✕</button>
+            <h3>Review Extracted Action Items</h3>
+            <p className="small">{pendingExtractedItems.items.length} item{pendingExtractedItems.items.length === 1 ? "" : "s"} found. All will be added with owner type "Own Team" by default — edit that after saving if an item actually belongs to another department or a contractor.</p>
+            {pendingExtractedItems.items.map((raw, i) => (
+              <div className="ai-box" key={i}>
+                <b>{raw.description || "(no description)"}</b>
+                <div className="small" style={{ marginTop: "4px" }}>Owner: {raw.owner || "(not stated)"} · Due: {raw.dueDate || "(not stated)"}</div>
+              </div>
+            ))}
+            <div className="flex" style={{ justifyContent: "flex-end", marginTop: "10px" }}>
+              <button className="btn ghost" onClick={() => setPendingExtractedItems(null)}>Cancel</button>
+              <button className="btn gold" onClick={confirmExtractedItems}>Save All</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </React.Fragment>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+<script>
+  // See Facilities_Monitoring_Dashboard.html / CLAUDE.md CRITICAL LESSON for why this manual-transform
+  // pattern is used instead of the automatic <script type="text/babel"> scan: babel-standalone's default
+  // JSX runtime is "automatic", which injects an ES module import that cannot execute in a plain script
+  // tag and silently fails to mount the app (blank page, no visible error).
+  (function () {
+    var src = document.getElementById("app-source").textContent;
+    try {
+      var out = Babel.transform(src, { presets: [["react", { runtime: "classic" }]] }).code;
+      new Function(out)();
+    } catch (e) {
+      document.getElementById("root").innerHTML =
+        '<div style="padding:24px;font-family:sans-serif;color:#B0413E;">' +
+        '<h2>This tool failed to start</h2><p>' + (e && e.message ? e.message : e) +
+        '</p><p style="color:#5B6B7A;font-size:13px;">Send this message to Matthew — it means something changed in how the browser runs this file.</p></div>';
+    }
+  })();
+</script>
+</body>
+</html>
