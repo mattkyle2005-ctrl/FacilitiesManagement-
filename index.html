@@ -8,6 +8,7 @@
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <script src="https://unpkg.com/qrcode@1.5.3/build/qrcode.min.js"></script>
+<script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
   :root{
     --navy:#1A3A5C;
@@ -151,6 +152,14 @@ const WO_STATUSES = ["Reported", "Logged", "Contractor Assigned", "In Progress",
 const WAITING_ON_OPTIONS = ["", "Water & Sanitation", "Eskom", "SAPS", "Roads Dept", "Other"];
 const CLOSED_STATUSES = ["Resolved", "Closed"];
 const DUPLICATE_THRESHOLD = 0.4;
+// Internal staff (Facility Officers, Technical Assistants, Superintendents) are Neil's own
+// City of Cape Town team, tracked separately from the Monitoring Officials — those are staffed
+// through an external tender operator, not directly managed by Neil the same way.
+const INTERNAL_STAFF_ROLES = ["Facility Officer", "Technical Assistant", "Superintendent"];
+// When a facility's status is changed to "Under Repair", the inspection-frequency override
+// auto-suggests this tighter check-in cadence (still editable/clearable) instead of the
+// default 30-day threshold — facilities under active repair need closer attention.
+const UNDER_REPAIR_SUGGESTED_FREQUENCY = 7;
 
 function uid() {
   if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
@@ -179,7 +188,27 @@ function generateWONumber() {
 }
 
 const DEMO_OFFICIALS = ["J. Petersen", "M. Adams", "S. Nkosi", "F. Davids"];
-const DEMO_CONTRACTORS = ["Cape Electrical CC", "BlueDot Plumbing"];
+// Contractors are now { name, parent } objects — parent is "" for a primary/top-level
+// provider, or another contractor's name if it's a sub-contractor working under them.
+// This reflects the real structure Neil described: one integrated FM service provider
+// (AFMS) who in turn uses smaller sub-contractors where they lack in-house capacity.
+const DEMO_CONTRACTORS = [
+  { name: "AFMS", parent: "" },
+  { name: "Cape Electrical CC", parent: "AFMS" },
+  { name: "BlueDot Plumbing", parent: "AFMS" }
+];
+const DEMO_INTERNAL_STAFF = [
+  { name: "T. Fortuin", role: "Superintendent" },
+  { name: "L. Meyer", role: "Facility Officer" },
+  { name: "R. Isaacs", role: "Technical Assistant" }
+];
+
+// Older saved data (or a JSON backup from before this feature) may have knownContractors
+// as a flat array of name strings. Normalize to {name, parent} objects so the rest of the
+// app can rely on one consistent shape without a hard storage-key migration.
+function normalizeContractors(list) {
+  return (list || []).map(c => (typeof c === "string" ? { name: c, parent: "" } : { name: c.name, parent: c.parent || "" }));
+}
 
 // Example data shown on the very first open so the tool isn't a blank shell.
 // Every seeded facility carries `_demo: true` so it can be cleared in one click
@@ -198,10 +227,12 @@ function demoSeed() {
   }
   return {
     officials: DEMO_OFFICIALS.slice(),
-    knownContractors: DEMO_CONTRACTORS.slice(),
+    knownContractors: DEMO_CONTRACTORS.map(c => ({ ...c })),
+    internalStaff: DEMO_INTERNAL_STAFF.map(s => ({ ...s })),
     facilities: [
       {
         id: uid(), _demo: true, name: "Wynberg Taxi Rank", official: "J. Petersen",
+        internalStaffName: "L. Meyer", inspectionFrequencyDays: null,
         status: "Needs Attention", lastInspected: daysAgoStr(41), photo: null,
         notes: "High foot traffic; roof leak reported in bay 3.",
         issues: [{
@@ -221,6 +252,7 @@ function demoSeed() {
       },
       {
         id: uid(), _demo: true, name: "Bellville Public Transport Interchange", official: "M. Adams",
+        internalStaffName: "T. Fortuin", inspectionFrequencyDays: null,
         status: "Operational", lastInspected: daysAgoStr(8), photo: null, notes: "",
         issues: [],
         maintenanceTasks: [
@@ -229,6 +261,10 @@ function demoSeed() {
       },
       {
         id: uid(), _demo: true, name: "Mitchells Plain PTI", official: "S. Nkosi",
+        internalStaffName: "R. Isaacs",
+        // Example of the per-facility inspection-frequency override: this facility is Under
+        // Repair, so it's checked every 7 days instead of the global 30-day default.
+        inspectionFrequencyDays: UNDER_REPAIR_SUGGESTED_FREQUENCY,
         status: "Under Repair", lastInspected: daysAgoStr(20), photo: null,
         notes: "Ablution block refurbishment underway.",
         issues: [{
@@ -245,11 +281,13 @@ function demoSeed() {
       },
       {
         id: uid(), _demo: true, name: "Khayelitsha Site B Taxi Rank", official: "F. Davids",
+        internalStaffName: "", inspectionFrequencyDays: null,
         status: "Operational", lastInspected: daysAgoStr(55), photo: null, notes: "",
         issues: [], maintenanceTasks: []
       },
       {
         id: uid(), _demo: true, name: "Nyanga Terminus", official: "J. Petersen",
+        internalStaffName: "", inspectionFrequencyDays: null,
         status: "Operational", lastInspected: "", photo: null,
         notes: "Newly added — inspection pending.",
         issues: [], maintenanceTasks: []
@@ -267,7 +305,11 @@ function loadState() {
       raw = localStorage.getItem(OLD_STORAGE_KEY);
     }
     if (!raw) return null;
-    return JSON.parse(raw);
+    const data = JSON.parse(raw);
+    // Normalize knownContractors in case this is data saved before the AFMS/sub-contractor
+    // hierarchy feature existed (flat array of name strings) — no storage-key bump needed.
+    if (data && data.knownContractors) data.knownContractors = normalizeContractors(data.knownContractors);
+    return data;
   } catch (e) {
     console.error("Failed to load saved state", e);
     return null;
@@ -312,6 +354,23 @@ function parseCSV(text) {
     rows.push(rec);
   }
   return rows;
+}
+
+// Neil said he'd send an Excel list of facilities — parse .xlsx/.xls client-side via the
+// SheetJS library and convert the first sheet to CSV text, so it flows through the exact
+// same review-then-import path as a pasted/typed CSV. Returns null if parsing fails.
+function parseExcelToCSVText(arrayBuffer) {
+  try {
+    if (typeof XLSX === "undefined") return null;
+    const workbook = XLSX.read(arrayBuffer, { type: "array" });
+    const firstSheetName = workbook.SheetNames[0];
+    if (!firstSheetName) return null;
+    const sheet = workbook.Sheets[firstSheetName];
+    return XLSX.utils.sheet_to_csv(sheet);
+  } catch (e) {
+    console.error("Failed to parse Excel file", e);
+    return null;
+  }
 }
 
 function downloadFile(filename, content, mime) {
@@ -576,11 +635,24 @@ function MaintenanceTaskForm({ facilities, onSave, onCancel }) {
   );
 }
 
-function FacilityForm({ initial, officials, onSave, onCancel }) {
+function FacilityForm({ initial, officials, internalStaff, overdueDays, onSave, onCancel }) {
   const [f, setF] = useState(initial || {
-    id: uid(), name: "", official: "", status: "Operational", lastInspected: "", notes: "", photo: null, issues: [], maintenanceTasks: []
+    id: uid(), name: "", official: "", internalStaffName: "", inspectionFrequencyDays: null,
+    status: "Operational", lastInspected: "", notes: "", photo: null, issues: [], maintenanceTasks: []
   });
   const set = (k, v) => setF(prev => ({ ...prev, [k]: v }));
+  // Changing status to "Under Repair" auto-suggests a tighter inspection frequency (still
+  // editable/clearable) — but only if nothing's been set already, so it never overwrites a
+  // deliberate choice Neil already made for this facility.
+  function setStatus(newStatus) {
+    setF(prev => ({
+      ...prev,
+      status: newStatus,
+      inspectionFrequencyDays: (newStatus === "Under Repair" && !prev.inspectionFrequencyDays)
+        ? UNDER_REPAIR_SUGGESTED_FREQUENCY
+        : prev.inspectionFrequencyDays
+    }));
+  }
   function handlePhoto(e) {
     const file = e.target.files[0];
     if (!file) return;
@@ -595,17 +667,26 @@ function FacilityForm({ initial, officials, onSave, onCancel }) {
           <label>Facility name</label>
           <input type="text" value={f.name} onChange={e => set("name", e.target.value)} placeholder="e.g. Wynberg Taxi Rank" />
         </div>
-        <div className="field">
-          <label>Assigned monitoring official</label>
-          <select value={f.official} onChange={e => set("official", e.target.value)}>
-            <option value="">Unassigned</option>
-            {officials.map(o => <option key={o} value={o}>{o}</option>)}
-          </select>
+        <div className="grid cols-2">
+          <div className="field">
+            <label>Assigned monitoring official (external)</label>
+            <select value={f.official} onChange={e => set("official", e.target.value)}>
+              <option value="">Unassigned</option>
+              {officials.map(o => <option key={o} value={o}>{o}</option>)}
+            </select>
+          </div>
+          <div className="field">
+            <label>Assigned internal staff (optional)</label>
+            <select value={f.internalStaffName || ""} onChange={e => set("internalStaffName", e.target.value)}>
+              <option value="">None</option>
+              {(internalStaff || []).map(s => <option key={s.name} value={s.name}>{s.name} ({s.role})</option>)}
+            </select>
+          </div>
         </div>
         <div className="grid cols-2">
           <div className="field">
             <label>Status</label>
-            <select value={f.status} onChange={e => set("status", e.target.value)}>
+            <select value={f.status} onChange={e => setStatus(e.target.value)}>
               <option>Operational</option><option>Needs Attention</option><option>Under Repair</option><option>Closed</option>
             </select>
           </div>
@@ -613,6 +694,12 @@ function FacilityForm({ initial, officials, onSave, onCancel }) {
             <label>Last inspected</label>
             <input type="date" value={f.lastInspected || ""} onChange={e => set("lastInspected", e.target.value)} />
           </div>
+        </div>
+        <div className="field">
+          <label>Inspection frequency override (days, optional)</label>
+          <input type="number" min="1" value={f.inspectionFrequencyDays || ""} placeholder={"Default: every " + overdueDays + "d"}
+            onChange={e => set("inspectionFrequencyDays", e.target.value ? Number(e.target.value) : null)} />
+          <p className="small">Leave blank to use the global {overdueDays}-day threshold. Set a tighter number for a facility that needs closer attention — auto-suggested at {UNDER_REPAIR_SUGGESTED_FREQUENCY}d when status is set to Under Repair, but always editable.</p>
         </div>
         <div className="field">
           <label>Notes</label>
@@ -668,7 +755,8 @@ function App() {
   const seed = saved || demoSeed();
   const [facilities, setFacilities] = useState(seed.facilities || []);
   const [officials, setOfficials] = useState(seed.officials || []);
-  const [knownContractors, setKnownContractors] = useState(seed.knownContractors || []);
+  const [internalStaff, setInternalStaff] = useState(seed.internalStaff || []);
+  const [knownContractors, setKnownContractors] = useState(normalizeContractors(seed.knownContractors));
   const [overdueDays, setOverdueDays] = useState(saved && saved.overdueDays !== undefined ? saved.overdueDays : DEFAULT_OVERDUE_DAYS);
   const [apiKey, setApiKey] = useState(saved && saved.apiKey ? saved.apiKey : "");
   const [model, setModel] = useState(saved && saved.model ? saved.model : DEFAULT_MODEL);
@@ -687,8 +775,12 @@ function App() {
   const [woPrefillDescription, setWoPrefillDescription] = useState("");
   const [showMaintForm, setShowMaintForm] = useState(false);
   const [newOfficial, setNewOfficial] = useState("");
+  const [newInternalStaffName, setNewInternalStaffName] = useState("");
+  const [newInternalStaffRole, setNewInternalStaffRole] = useState(INTERNAL_STAFF_ROLES[0]);
   const [newContractor, setNewContractor] = useState("");
+  const [newContractorParent, setNewContractorParent] = useState("");
   const [csvText, setCsvText] = useState("");
+  const [maintSearch, setMaintSearch] = useState("");
   const [quickLogText, setQuickLogText] = useState("");
   const [quickLogFacilityId, setQuickLogFacilityId] = useState("");
   const [briefBusy, setBriefBusy] = useState(false);
@@ -699,8 +791,8 @@ function App() {
   const csvInputRef = useRef(null);
 
   useEffect(() => {
-    saveState({ facilities, officials, knownContractors, overdueDays, apiKey, model, briefing, briefingAt });
-  }, [facilities, officials, knownContractors, overdueDays, apiKey, model, briefing, briefingAt]);
+    saveState({ facilities, officials, internalStaff, knownContractors, overdueDays, apiKey, model, briefing, briefingAt });
+  }, [facilities, officials, internalStaff, knownContractors, overdueDays, apiKey, model, briefing, briefingAt]);
 
   // Deep-link support: a QR code (or any bookmarked link) can jump straight to a
   // single facility's quick-action screen via a #facility=<id> hash fragment.
@@ -717,12 +809,15 @@ function App() {
   const enriched = useMemo(() => {
     return facilities.map(f => {
       const days = daysSince(f.lastInspected);
-      const overdue = days === null || days > overdueDays;
+      // A facility with its own inspection-frequency override (e.g. tightened to 7d while
+      // Under Repair) uses that instead of the global threshold for its overdue calculation.
+      const effectiveThreshold = f.inspectionFrequencyDays && f.inspectionFrequencyDays > 0 ? f.inspectionFrequencyDays : overdueDays;
+      const overdue = days === null || days > effectiveThreshold;
       const workOrders = f.issues || [];
       const openWOs = workOrders.filter(w => !CLOSED_STATUSES.includes(w.status));
       const maintenanceTasks = f.maintenanceTasks || [];
       const overdueMaint = maintenanceTasks.filter(t => maintenanceStatus(t).overdue);
-      return { ...f, daysSinceInspection: days, overdue, workOrders, openWOs, openIssueCount: openWOs.length, maintenanceTasks, overdueMaintCount: overdueMaint.length };
+      return { ...f, daysSinceInspection: days, effectiveThreshold, overdue, workOrders, openWOs, openIssueCount: openWOs.length, maintenanceTasks, overdueMaintCount: overdueMaint.length };
     });
   }, [facilities, overdueDays]);
 
@@ -759,6 +854,24 @@ function App() {
 
   const maxWorkload = Math.max(1, ...workload.map(([, v]) => v.total));
 
+  // Mirrors the Monitoring Officials workload view, but for Neil's own internal team
+  // (Facility Officers, Technical Assistants, Superintendents) — kept as a separate list
+  // since these are two different reporting lines (external tender operator vs internal staff).
+  const workloadInternal = useMemo(() => {
+    const map = {};
+    internalStaff.forEach(s => { map[s.name] = { total: 0, overdue: 0, role: s.role }; });
+    enriched.forEach(f => {
+      const key = f.internalStaffName;
+      if (!key) return;
+      if (!map[key]) map[key] = { total: 0, overdue: 0, role: "" };
+      map[key].total += 1;
+      if (f.overdue) map[key].overdue += 1;
+    });
+    return Object.entries(map).sort((a, b) => b[1].total - a[1].total);
+  }, [internalStaff, enriched]);
+
+  const maxWorkloadInternal = Math.max(1, ...workloadInternal.map(([, v]) => v.total));
+
   const allMaintenanceTasks = useMemo(() => {
     return enriched.flatMap(f => (f.maintenanceTasks || []).map(t => ({ ...t, facilityId: f.id, facilityName: f.name, status: maintenanceStatus(t) })))
       .sort((a, b) => a.status.daysUntil - b.status.daysUntil);
@@ -782,17 +895,30 @@ function App() {
         map[name].open += 1;
       }
     }));
+    const parentOf = {};
+    knownContractors.forEach(c => { parentOf[c.name] = c.parent || ""; });
     return Object.entries(map).map(([name, v]) => ({
-      name, total: v.total, open: v.open, resolved: v.resolved,
+      name, total: v.total, open: v.open, resolved: v.resolved, parent: parentOf[name] || "",
       avgDays: v.withDays > 0 ? Math.round(v.totalDays / v.withDays) : null
     })).sort((a, b) => b.total - a.total);
-  }, [enriched]);
+  }, [enriched, knownContractors]);
 
   const contractorOptions = useMemo(() => {
-    const seen = new Set(knownContractors);
+    const seen = new Set(knownContractors.map(c => c.name));
     enriched.forEach(f => (f.workOrders || []).forEach(w => { if (w.contractor) seen.add(w.contractor); }));
     return Array.from(seen).filter(Boolean).sort();
   }, [knownContractors, enriched]);
+
+  // Two-level hierarchy only (primary provider -> sub-contractors), matching the real
+  // structure Neil described: AFMS as the one integrated FM service provider, with smaller
+  // sub-contractors underneath where they lack in-house capacity.
+  const contractorHierarchy = useMemo(() => {
+    const topLevel = knownContractors.filter(c => !c.parent);
+    return topLevel.map(top => ({
+      ...top,
+      children: knownContractors.filter(c => c.parent === top.name)
+    }));
+  }, [knownContractors]);
 
   const suggestedFacilityId = useMemo(() => guessFacilityFromText(quickLogText, facilities), [quickLogText, facilities]);
 
@@ -804,10 +930,14 @@ function App() {
     if (!window.confirm("Clear the example data and start fresh?\n\nThis removes the sample facilities so you can enter your real ones. Anything you've already added yourself is kept.")) return;
     const real = facilities.filter(f => !f._demo);
     const usedOfficials = new Set(real.map(f => f.official).filter(Boolean));
+    const usedInternalStaff = new Set(real.map(f => f.internalStaffName).filter(Boolean));
     const usedContractors = new Set(real.flatMap(f => (f.issues || []).map(w => w.contractor).filter(Boolean)));
+    const demoContractorNames = new Set(DEMO_CONTRACTORS.map(c => c.name));
+    const demoInternalStaffNames = new Set(DEMO_INTERNAL_STAFF.map(s => s.name));
     setFacilities(real);
     setOfficials(prev => prev.filter(o => !DEMO_OFFICIALS.includes(o) || usedOfficials.has(o)));
-    setKnownContractors(prev => prev.filter(c => !DEMO_CONTRACTORS.includes(c) || usedContractors.has(c)));
+    setInternalStaff(prev => prev.filter(s => !demoInternalStaffNames.has(s.name) || usedInternalStaff.has(s.name)));
+    setKnownContractors(prev => prev.filter(c => !demoContractorNames.has(c.name) || usedContractors.has(c.name)));
     setBriefing("");
     setBriefingAt("");
   }
@@ -919,26 +1049,44 @@ function App() {
     setOfficials(prev => prev.filter(o => o !== name));
   }
 
-  function addContractor() {
-    const name = newContractor.trim();
-    if (!name || knownContractors.includes(name)) return;
-    setKnownContractors(prev => [...prev, name]);
-    setNewContractor("");
+  function addInternalStaff() {
+    const name = newInternalStaffName.trim();
+    if (!name || internalStaff.some(s => s.name === name)) return;
+    setInternalStaff(prev => [...prev, { name, role: newInternalStaffRole }]);
+    setNewInternalStaffName("");
   }
 
+  function removeInternalStaff(name) {
+    setInternalStaff(prev => prev.filter(s => s.name !== name));
+  }
+
+  function addContractor() {
+    const name = newContractor.trim();
+    if (!name || knownContractors.some(c => c.name === name)) return;
+    setKnownContractors(prev => [...prev, { name, parent: newContractorParent || "" }]);
+    setNewContractor("");
+    setNewContractorParent("");
+  }
+
+  // If the removed contractor had sub-contractors under it, reparent them to top-level
+  // rather than silently orphaning the relationship or blocking the delete.
   function removeContractor(name) {
-    setKnownContractors(prev => prev.filter(c => c !== name));
+    setKnownContractors(prev => prev
+      .filter(c => c.name !== name)
+      .map(c => c.parent === name ? { ...c, parent: "" } : c));
   }
 
   function handleImportCSV() {
     const rows = parseCSV(csvText);
-    if (rows.length === 0) { alert("No rows found. Header row should be: name,official,status,lastinspected,notes"); return; }
+    if (rows.length === 0) { alert("No rows found. Header row should be: name,official,internalstaff,status,lastinspected,inspectionfrequencydays,notes"); return; }
     const imported = rows.map(r => ({
       id: uid(),
       name: r.name || r.facility || "Unnamed facility",
       official: r.official || "",
+      internalStaffName: r.internalstaff || r["internal staff"] || "",
       status: r.status || "Operational",
       lastInspected: r.lastinspected || r["last inspected"] || "",
+      inspectionFrequencyDays: r.inspectionfrequencydays ? Number(r.inspectionfrequencydays) : null,
       notes: r.notes || "",
       issues: [],
       maintenanceTasks: []
@@ -946,27 +1094,46 @@ function App() {
     setFacilities(prev => [...withoutDemo(prev), ...imported]);
     const newOfficials = Array.from(new Set(imported.map(f => f.official).filter(Boolean)));
     setOfficials(prev => Array.from(new Set([...prev, ...newOfficials])));
+    const newStaffNames = Array.from(new Set(imported.map(f => f.internalStaffName).filter(Boolean)));
+    setInternalStaff(prev => {
+      const existingNames = new Set(prev.map(s => s.name));
+      const additions = newStaffNames.filter(n => !existingNames.has(n)).map(n => ({ name: n, role: INTERNAL_STAFF_ROLES[0] }));
+      return [...prev, ...additions];
+    });
     setCsvText("");
     alert(`Imported ${imported.length} facilities.`);
   }
 
-  // Read a .csv file the user picked and drop its text into the paste box so they
-  // can eyeball it before committing the import — easier than copy-pasting from Excel.
+  // Read a .csv OR .xlsx/.xls file the user picked and drop the resulting CSV text into the
+  // paste box so they can eyeball it before committing the import. Neil said he'd send an
+  // Excel list, so .xlsx/.xls go through SheetJS first and land in the exact same review path.
   function handleCSVFile(e) {
     const file = e.target.files[0];
     if (!file) return;
+    const isExcel = /\.xlsx$|\.xls$/i.test(file.name);
     const reader = new FileReader();
-    reader.onload = (evt) => { setCsvText(evt.target.result || ""); };
-    reader.onerror = () => alert("Could not read that file.");
-    reader.readAsText(file);
+    if (isExcel) {
+      reader.onload = (evt) => {
+        const csv = parseExcelToCSVText(evt.target.result);
+        if (csv === null) { alert("Could not read that Excel file. Try saving it as .csv and uploading that instead."); return; }
+        setCsvText(csv);
+      };
+      reader.onerror = () => alert("Could not read that file.");
+      reader.readAsArrayBuffer(file);
+    } else {
+      reader.onload = (evt) => { setCsvText(evt.target.result || ""); };
+      reader.onerror = () => alert("Could not read that file.");
+      reader.readAsText(file);
+    }
     e.target.value = "";
   }
 
   // A ready-made CSV Neil can open in Excel/Sheets, fill in, and upload back.
   function downloadCSVTemplate() {
-    const content = "name,official,status,lastinspected,notes\n"
-      + "Wynberg Taxi Rank,J. Petersen,Operational,2026-06-15,Roof leaking in bay 3\n"
-      + "Bellville PTI,M. Adams,Needs Attention,2026-05-30,Awaiting contractor callout\n";
+    const content = "name,official,internalstaff,status,lastinspected,inspectionfrequencydays,notes\n"
+      + "Wynberg Taxi Rank,J. Petersen,L. Meyer,Operational,2026-06-15,,Roof leaking in bay 3\n"
+      + "Bellville PTI,M. Adams,T. Fortuin,Needs Attention,2026-05-30,,Awaiting contractor callout\n"
+      + "Mitchells Plain PTI,S. Nkosi,R. Isaacs,Under Repair,2026-06-25,7,Ablution block refurbishment underway\n";
     downloadFile("facilities_template.csv", content, "text/csv");
   }
 
@@ -1002,12 +1169,12 @@ function App() {
   }
 
   function exportCSV() {
-    const header = ["Name", "Official", "Status", "LastInspected", "DaysSinceInspection", "Overdue", "OpenWorkOrders", "OverdueMaintenance", "Notes"];
+    const header = ["Name", "Official", "InternalStaff", "Status", "LastInspected", "InspectionFrequencyDays", "DaysSinceInspection", "Overdue", "OpenWorkOrders", "OverdueMaintenance", "Notes"];
     const lines = [header.join(",")];
     enriched.forEach(f => {
       lines.push([
-        toCSVValue(f.name), toCSVValue(f.official), toCSVValue(f.status), toCSVValue(f.lastInspected || "never"),
-        f.daysSinceInspection === null ? "never" : f.daysSinceInspection, f.overdue ? "YES" : "no", f.openWOs.length, f.overdueMaintCount, toCSVValue(f.notes || "")
+        toCSVValue(f.name), toCSVValue(f.official), toCSVValue(f.internalStaffName || ""), toCSVValue(f.status), toCSVValue(f.lastInspected || "never"),
+        f.inspectionFrequencyDays || "", f.daysSinceInspection === null ? "never" : f.daysSinceInspection, f.overdue ? "YES" : "no", f.openWOs.length, f.overdueMaintCount, toCSVValue(f.notes || "")
       ].join(","));
     });
     downloadFile("facilities_monitoring_" + todayStr() + ".csv", lines.join("\n"), "text/csv");
@@ -1040,7 +1207,7 @@ function App() {
   }
 
   function exportJSONBackup() {
-    const payload = { facilities, officials, knownContractors, overdueDays, model, exportedAt: new Date().toISOString() };
+    const payload = { facilities, officials, internalStaff, knownContractors, overdueDays, model, exportedAt: new Date().toISOString() };
     downloadFile("facilities_monitoring_backup_" + todayStr() + ".json", JSON.stringify(payload, null, 2), "application/json");
   }
 
@@ -1054,7 +1221,8 @@ function App() {
         if (!window.confirm("This will replace all current facilities and settings with the backup file. Continue?")) return;
         setFacilities(data.facilities || []);
         setOfficials(data.officials || []);
-        setKnownContractors(data.knownContractors || []);
+        setInternalStaff(data.internalStaff || []);
+        setKnownContractors(normalizeContractors(data.knownContractors));
         setOverdueDays(data.overdueDays !== undefined ? data.overdueDays : DEFAULT_OVERDUE_DAYS);
         if (data.model) setModel(data.model);
         alert("Backup restored.");
@@ -1158,14 +1326,28 @@ Write the briefing directly, as if speaking to the manager, prioritizing the mos
               )}
             </div>
             <div className="card">
-              <h2>Workload by Monitoring Official</h2>
-              <p className="small">Facility count per official, with overdue count highlighted — useful for spotting an overloaded official before it becomes a problem.</p>
+              <h2>Workload by Monitoring Official (external)</h2>
+              <p className="small">Facility count per official, with overdue count highlighted — useful for spotting an overloaded official before it becomes a problem. These officials are staffed through the external tender operator.</p>
               {workload.length === 0 && <p className="small">No officials or facilities yet.</p>}
               {workload.map(([name, v]) => (
                 <div className="bar-row" key={name}>
                   <div>{name}</div>
                   <div className="bar-track">
                     <div className={"bar-fill" + (v.overdue > 0 ? " overdue" : "")} style={{ width: (v.total / maxWorkload * 100) + "%" }}></div>
+                  </div>
+                  <div className="small">{v.total} ({v.overdue} late)</div>
+                </div>
+              ))}
+            </div>
+            <div className="card">
+              <h2>Workload by Internal Staff</h2>
+              <p className="small">Facility count per internal team member (Facility Officers, Technical Assistants, Superintendents) — tracked separately from external Monitoring Officials since they're two different reporting lines.</p>
+              {workloadInternal.length === 0 && <p className="small">No internal staff added yet — add them on the Settings tab.</p>}
+              {workloadInternal.map(([name, v]) => (
+                <div className="bar-row" key={name}>
+                  <div>{name}{v.role ? <span className="small"> ({v.role})</span> : ""}</div>
+                  <div className="bar-track">
+                    <div className={"bar-fill" + (v.overdue > 0 ? " overdue" : "")} style={{ width: (v.total / maxWorkloadInternal * 100) + "%" }}></div>
                   </div>
                   <div className="small">{v.total} ({v.overdue} late)</div>
                 </div>
@@ -1201,7 +1383,7 @@ Write the briefing directly, as if speaking to the manager, prioritizing the mos
               <table>
                 <thead>
                   <tr>
-                    <th>Facility</th><th>Official</th><th>Status</th><th>Last Inspected</th><th>Open WOs</th><th>Maint. overdue</th><th></th>
+                    <th>Facility</th><th>Official</th><th>Internal Staff</th><th>Status</th><th>Last Inspected</th><th>Open WOs</th><th>Maint. overdue</th><th></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1214,11 +1396,13 @@ Write the briefing directly, as if speaking to the manager, prioritizing the mos
                         </div>
                       </td>
                       <td>{f.official || <span className="small">Unassigned</span>}</td>
+                      <td>{f.internalStaffName || <span className="small">—</span>}</td>
                       <td><span className={"badge " + f.status.replace(/ /g, "")}>{f.status}</span></td>
                       <td>
                         {f.daysSinceInspection === null ? <span className="badge overdue">Never</span> : (
                           <span className={"badge " + (f.overdue ? "overdue" : "ok")}>{f.daysSinceInspection}d ago</span>
                         )}
+                        {f.inspectionFrequencyDays ? <div className="small">checked every {f.inspectionFrequencyDays}d</div> : null}
                       </td>
                       <td>{f.openWOs.length}</td>
                       <td>{f.overdueMaintCount}</td>
@@ -1243,7 +1427,7 @@ Write the briefing directly, as if speaking to the manager, prioritizing the mos
                     {f.photo && <img src={f.photo} alt="" className="fac-thumb" onClick={() => setLightbox(f.photo)} />}
                     <div>
                       <div className="fc-name">{f.name}</div>
-                      <div className="fc-meta">{f.official || "Unassigned"}</div>
+                      <div className="fc-meta">{f.official || "Unassigned"}{f.internalStaffName ? " · " + f.internalStaffName : ""}</div>
                     </div>
                   </div>
                   <span className={"badge " + f.status.replace(/ /g, "")}>{f.status}</span>
@@ -1252,6 +1436,7 @@ Write the briefing directly, as if speaking to the manager, prioritizing the mos
                   <span>{f.daysSinceInspection === null ? "Never inspected" : f.daysSinceInspection + " days since inspection"}</span>
                   <span>{f.openWOs.length} open WOs</span>
                   <span>{f.overdueMaintCount} maint. overdue</span>
+                  {f.inspectionFrequencyDays ? <span>checked every {f.inspectionFrequencyDays}d</span> : null}
                 </div>
                 <div className="fc-actions">
                   <button className="btn ghost small" onClick={() => logInspection(f.id)}>Log Inspection</button>
@@ -1338,12 +1523,16 @@ Write the briefing directly, as if speaking to the manager, prioritizing the mos
           <div className="card">
             <div className="toolbar">
               <h2 style={{ margin: 0 }}>Preventative &amp; Routine Maintenance</h2>
+              <input type="text" placeholder="Search facility name..." value={maintSearch} onChange={e => setMaintSearch(e.target.value)} style={{ width: "220px" }} />
               <button className="btn gold" onClick={() => setShowMaintForm(true)} disabled={facilities.length === 0}>+ Add Task</button>
             </div>
-            <p className="small">Recurring upkeep — service schedules, inspections, cleaning cycles — tracked separately from reactive work orders. Sorted by most overdue first.</p>
+            <p className="small">Recurring upkeep — service schedules, inspections, cleaning cycles — tracked separately from reactive work orders. Sorted by most overdue first. As the maintenance backlog grows across facilities, use the search box to find one quickly.</p>
             {facilities.length === 0 && <p className="small">Add a facility first before scheduling maintenance tasks.</p>}
             {allMaintenanceTasks.length === 0 && facilities.length > 0 && <p className="small">No maintenance tasks scheduled yet.</p>}
-            {allMaintenanceTasks.map(t => (
+            {allMaintenanceTasks.length > 0 && allMaintenanceTasks.filter(t => !maintSearch || t.facilityName.toLowerCase().includes(maintSearch.toLowerCase())).length === 0 && (
+              <p className="small">No maintenance tasks match "{maintSearch}".</p>
+            )}
+            {allMaintenanceTasks.filter(t => !maintSearch || t.facilityName.toLowerCase().includes(maintSearch.toLowerCase())).map(t => (
               <div className="maint-row" key={t.id}>
                 <div><strong>{t.facilityName}</strong></div>
                 <div>{t.name}</div>
@@ -1368,12 +1557,13 @@ Write the briefing directly, as if speaking to the manager, prioritizing the mos
               {contractorStats.length > 0 && (
                 <table>
                   <thead>
-                    <tr><th>Contractor</th><th>Total WOs</th><th>Open</th><th>Resolved</th><th>Avg. days to resolve</th></tr>
+                    <tr><th>Contractor</th><th>Parent Provider</th><th>Total WOs</th><th>Open</th><th>Resolved</th><th>Avg. days to resolve</th></tr>
                   </thead>
                   <tbody>
                     {contractorStats.map(c => (
                       <tr key={c.name}>
                         <td>{c.name}</td>
+                        <td>{c.parent || <span className="small">—</span>}</td>
                         <td>{c.total}</td>
                         <td>{c.open}</td>
                         <td>{c.resolved}</td>
@@ -1386,17 +1576,38 @@ Write the briefing directly, as if speaking to the manager, prioritizing the mos
             </div>
             <div className="card">
               <h2>Known Contractors</h2>
-              <p className="small">Maintain a list so the Work Order form's contractor field auto-suggests consistent names instead of "ABC Electrical" vs "abc electrical (Pty) Ltd" fragmenting your stats.</p>
-              <div className="flex">
-                <input type="text" style={{ width: "220px" }} value={newContractor} onChange={e => setNewContractor(e.target.value)} placeholder="Add contractor name..." />
-                <button className="btn gold" onClick={addContractor}>Add</button>
+              <p className="small">Reflects the real structure Neil described: one integrated facilities management service provider (AFMS) who in turn uses smaller sub-contractors where they lack in-house capacity. Add AFMS (or any other primary provider) first, then add sub-contractors underneath it. Maintaining this list also keeps the Work Order form's contractor field consistent instead of "ABC Electrical" vs "abc electrical (Pty) Ltd" fragmenting your stats.</p>
+              <div className="grid cols-2">
+                <div className="field">
+                  <label>Contractor name</label>
+                  <input type="text" value={newContractor} onChange={e => setNewContractor(e.target.value)} placeholder="e.g. AFMS or Cape Electrical CC" />
+                </div>
+                <div className="field">
+                  <label>Sub-contractor of (optional)</label>
+                  <select value={newContractorParent} onChange={e => setNewContractorParent(e.target.value)}>
+                    <option value="">— Primary provider (top-level) —</option>
+                    {knownContractors.filter(c => !c.parent).map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+                  </select>
+                </div>
               </div>
-              <div style={{ marginTop: "10px" }}>
+              <button className="btn gold" onClick={addContractor}>Add Contractor</button>
+              <div style={{ marginTop: "14px" }}>
                 {knownContractors.length === 0 && <p className="small">No contractors added yet — names used on work orders still show up in the table above automatically.</p>}
-                {knownContractors.map(c => (
-                  <span key={c} className="pill" style={{ marginRight: "6px", marginBottom: "6px", display: "inline-block" }}>
-                    {c} <button className="close-x" style={{ float: "none", fontSize: "12px", marginLeft: "4px" }} onClick={() => removeContractor(c)}>✕</button>
-                  </span>
+                {contractorHierarchy.map(top => (
+                  <div key={top.name} style={{ marginBottom: "10px" }}>
+                    <span className="pill" style={{ marginRight: "6px", marginBottom: "6px", display: "inline-block", fontWeight: 700 }}>
+                      {top.name} <button className="close-x" style={{ float: "none", fontSize: "12px", marginLeft: "4px" }} onClick={() => removeContractor(top.name)}>✕</button>
+                    </span>
+                    {top.children.length > 0 && (
+                      <div style={{ marginLeft: "22px", marginTop: "4px" }}>
+                        {top.children.map(c => (
+                          <span key={c.name} className="pill" style={{ marginRight: "6px", marginBottom: "6px", display: "inline-block" }}>
+                            {c.name} <span className="small">(sub-contractor)</span> <button className="close-x" style={{ float: "none", fontSize: "12px", marginLeft: "4px" }} onClick={() => removeContractor(c.name)}>✕</button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 ))}
               </div>
             </div>
@@ -1435,19 +1646,19 @@ Write the briefing directly, as if speaking to the manager, prioritizing the mos
               <input type="file" accept="application/json" ref={plannerInputRef} style={{ display: "none" }} onChange={importPlannerBackup} />
             </div>
             <div className="card">
-              <h2>Bulk Import (CSV)</h2>
-              <p className="small">Two easy ways to load all 115 facilities at once. Header row: <code>name,official,status,lastinspected,notes</code>. Status is one of Operational, Needs Attention, Under Repair, Closed. Dates as YYYY-MM-DD.</p>
+              <h2>Bulk Import (CSV or Excel)</h2>
+              <p className="small">Three easy ways to load all 115 facilities at once. Header row: <code>name,official,internalstaff,status,lastinspected,inspectionfrequencydays,notes</code>. Status is one of Operational, Needs Attention, Under Repair, Closed. Dates as YYYY-MM-DD. Internal staff and inspection frequency are both optional. Upload works for a plain .csv file or an Excel .xlsx/.xls file directly — no need to save Excel as CSV first.</p>
               <div className="upload-row">
                 <button className="btn ghost" onClick={downloadCSVTemplate}>1. Download CSV template</button>
                 <span className="small">Open it in Excel or Google Sheets, fill in your facilities, save.</span>
               </div>
               <div className="upload-row">
-                <button className="btn gold" onClick={() => csvInputRef.current.click()}>2. Upload your CSV file</button>
-                <input type="file" accept=".csv,text/csv" ref={csvInputRef} style={{ display: "none" }} onChange={handleCSVFile} />
+                <button className="btn gold" onClick={() => csvInputRef.current.click()}>2. Upload your CSV or Excel file</button>
+                <input type="file" accept=".csv,text/csv,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" ref={csvInputRef} style={{ display: "none" }} onChange={handleCSVFile} />
                 <span className="small">Loads the file below so you can check it before importing.</span>
               </div>
               <p className="small" style={{ marginTop: "10px", marginBottom: "4px" }}>…or paste rows directly:</p>
-              <textarea rows="8" value={csvText} onChange={e => setCsvText(e.target.value)} placeholder="name,official,status,lastinspected,notes&#10;Wynberg Taxi Rank,J. Petersen,Operational,2026-06-15,Roof leaking in bay 3"></textarea>
+              <textarea rows="8" value={csvText} onChange={e => setCsvText(e.target.value)} placeholder="name,official,internalstaff,status,lastinspected,inspectionfrequencydays,notes&#10;Wynberg Taxi Rank,J. Petersen,L. Meyer,Operational,2026-06-15,,Roof leaking in bay 3"></textarea>
               <div className="flex" style={{ marginTop: "10px" }}>
                 <button className="btn gold" disabled={!csvText.trim()} onClick={handleImportCSV}>Import Rows</button>
                 {csvText.trim() && <button className="btn ghost" onClick={() => setCsvText("")}>Clear</button>}
@@ -1493,7 +1704,8 @@ Write the briefing directly, as if speaking to the manager, prioritizing the mos
               </div>
             </div>
             <div className="card">
-              <h2>Monitoring Officials</h2>
+              <h2>Monitoring Officials (external)</h2>
+              <p className="small">Staffed through the external tender operator — for Neil's own internal team (Facility Officers, Technical Assistants, Superintendents), use Internal Staff below instead.</p>
               <div className="flex">
                 <input type="text" style={{ width: "220px" }} value={newOfficial} onChange={e => setNewOfficial(e.target.value)} placeholder="Add official name..." />
                 <button className="btn gold" onClick={addOfficial}>Add</button>
@@ -1507,15 +1719,42 @@ Write the briefing directly, as if speaking to the manager, prioritizing the mos
                 ))}
               </div>
             </div>
+            <div className="card">
+              <h2>Internal Staff</h2>
+              <p className="small">Neil's own City of Cape Town team — Facility Officers, Technical Assistants, and Superintendents — tracked separately from the externally-staffed Monitoring Officials above. Assign them to facilities on the Facilities tab.</p>
+              <div className="grid cols-2">
+                <div className="field">
+                  <label>Name</label>
+                  <input type="text" value={newInternalStaffName} onChange={e => setNewInternalStaffName(e.target.value)} placeholder="Add staff name..." />
+                </div>
+                <div className="field">
+                  <label>Role</label>
+                  <select value={newInternalStaffRole} onChange={e => setNewInternalStaffRole(e.target.value)}>
+                    {INTERNAL_STAFF_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                </div>
+              </div>
+              <button className="btn gold" onClick={addInternalStaff}>Add</button>
+              <div style={{ marginTop: "10px" }}>
+                {internalStaff.length === 0 && <p className="small">No internal staff added yet.</p>}
+                {internalStaff.map(s => (
+                  <span key={s.name} className="pill" style={{ marginRight: "6px", marginBottom: "6px", display: "inline-block" }}>
+                    {s.name} <span className="small">({s.role})</span> <button className="close-x" style={{ float: "none", fontSize: "12px", marginLeft: "4px" }} onClick={() => removeInternalStaff(s.name)}>✕</button>
+                  </span>
+                ))}
+              </div>
+            </div>
           </React.Fragment>
         )}
 
-        <p className="footer-note">Neil Arendse Toolkit — 115 Facilities Monitoring Dashboard v4 · Data stored locally in this browser only. A separate tool from the Facilities Rationalisation Planner — this one tracks day-to-day inspection status, work orders, and preventative maintenance; the Planner handles the Maintain/Optimise/Monitor/Decommission strategic review.</p>
+        <p className="footer-note">Neil Arendse Toolkit — 115 Facilities Monitoring Dashboard v5 · Data stored locally in this browser only. A separate tool from the Facilities Rationalisation Planner — this one tracks day-to-day inspection status, work orders, and preventative maintenance; the Planner handles the Maintain/Optimise/Monitor/Decommission strategic review.</p>
       </main>
       {showForm && (
         <FacilityForm
           initial={editing}
           officials={officials}
+          internalStaff={internalStaff}
+          overdueDays={overdueDays}
           onSave={saveFacility}
           onCancel={() => { setShowForm(false); setEditing(null); }}
         />
