@@ -1,0 +1,1334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Totem Pole Refurbishment Tracker — City of Cape Town</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.min.js"></script>
+<style>
+  :root{
+    --navy:#1A3A5C;
+    --navy-dark:#122843;
+    --gold:#C9A84C;
+    --gold-dark:#B08F35;
+    --slate:#F0F4F8;
+    --white:#FAFBFD;
+    --ink:#1C2733;
+    --muted:#5B6B7A;
+    --good:#2E7D4F;
+    --warn:#B08F35;
+    --bad:#B0413E;
+    --info:#3A6EA5;
+    --orange:#C1652B;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--slate);color:var(--ink);}
+  header.app-header{background:linear-gradient(135deg,var(--navy),var(--navy-dark));color:var(--white);padding:18px 20px;position:sticky;top:0;z-index:20;box-shadow:0 2px 8px rgba(0,0,0,0.15);}
+  header.app-header h1{margin:0;font-size:18px;font-weight:700;letter-spacing:0.2px;}
+  header.app-header p{margin:4px 0 0;font-size:12.5px;color:#CBD8E6;}
+  .header-row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+  .gold-badge{background:var(--gold);color:var(--navy-dark);font-weight:700;font-size:11px;padding:4px 10px;border-radius:999px;letter-spacing:0.3px;}
+  nav.tabs{display:flex;gap:4px;background:var(--navy-dark);padding:0 12px;overflow-x:auto;position:sticky;top:64px;z-index:19;}
+  nav.tabs button{background:transparent;border:none;color:#B9C7D6;padding:12px 14px;font-size:13.5px;font-weight:600;cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap;}
+  nav.tabs button.active{color:var(--white);border-bottom:3px solid var(--gold);}
+  main{max-width:1180px;margin:0 auto;padding:18px 14px 60px;}
+  .card{background:var(--white);border-radius:12px;padding:18px;box-shadow:0 1px 3px rgba(20,40,60,0.08);margin-bottom:16px;border:1px solid #E2E9F0;}
+  .card h2{margin-top:0;font-size:15px;color:var(--navy);}
+  .grid{display:grid;gap:14px;}
+  .grid.cols-4{grid-template-columns:repeat(4,1fr);}
+  .grid.cols-3{grid-template-columns:repeat(3,1fr);}
+  .grid.cols-2{grid-template-columns:repeat(2,1fr);}
+  @media(max-width:760px){.grid.cols-4{grid-template-columns:repeat(2,1fr);}.grid.cols-3{grid-template-columns:1fr;}.grid.cols-2{grid-template-columns:1fr;}}
+  .stat{background:var(--slate);border-radius:10px;padding:12px;text-align:center;border:1px solid #E2E9F0;}
+  .stat.alert{background:#FBEDEC;border-color:#F0C9C6;}
+  .stat .num{font-size:22px;font-weight:800;color:var(--navy);}
+  .stat.alert .num{color:var(--bad);}
+  .stat .lbl{font-size:11.5px;color:var(--muted);margin-top:2px;}
+  .badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;color:#fff;}
+  .badge.cond-Good{background:var(--good);}
+  .badge.cond-Fair{background:var(--warn);}
+  .badge.cond-Poor{background:var(--orange);}
+  .badge.cond-BeyondRepair{background:var(--bad);}
+  .badge.status-Logged{background:var(--muted);}
+  .badge.status-Scheduled{background:var(--warn);}
+  .badge.status-InProgress{background:var(--info);}
+  .badge.status-Refurbished{background:var(--good);}
+  .badge.status-Verified{background:var(--gold-dark);}
+  .badge.priority-1{background:var(--bad);}
+  .badge.priority-2{background:var(--info);}
+  .badge.priority-3{background:var(--muted);}
+  .badge.phase-NotStarted{background:var(--muted);}
+  .badge.phase-InProgress{background:var(--info);}
+  .badge.phase-Complete{background:var(--good);}
+  button.btn{background:var(--navy);color:#fff;border:none;padding:9px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;}
+  button.btn:hover{background:var(--navy-dark);}
+  button.btn.gold{background:var(--gold);color:var(--navy-dark);}
+  button.btn.gold:hover{background:var(--gold-dark);}
+  button.btn.ghost{background:transparent;color:var(--navy);border:1px solid #C7D3DE;}
+  button.btn.danger{background:var(--bad);}
+  button.btn.small{padding:5px 10px;font-size:11.5px;}
+  button.btn.big{padding:16px 20px;font-size:15px;width:100%;}
+  button.btn:disabled{opacity:0.5;cursor:not-allowed;}
+  input,select,textarea{font-family:inherit;font-size:13.5px;padding:8px 10px;border-radius:7px;border:1px solid #C7D3DE;width:100%;background:#fff;color:var(--ink);}
+  label{font-size:12px;font-weight:600;color:var(--muted);display:block;margin-bottom:4px;}
+  .field{margin-bottom:10px;}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th{text-align:left;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:0.4px;border-bottom:2px solid #E2E9F0;padding:8px 8px;}
+  td{padding:9px 8px;border-bottom:1px solid #EDF1F5;vertical-align:middle;}
+  tr:hover td{background:#F7FAFC;}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px;}
+  .toolbar input[type=text]{width:220px;}
+  .toolbar select{width:auto;}
+  .pill{background:var(--slate);border-radius:999px;padding:6px 12px;font-size:12px;font-weight:600;color:var(--navy);border:1px solid #DCE4EC;}
+  .item-card{background:#fff;border:1px solid #E2E9F0;border-radius:10px;padding:14px;margin-bottom:12px;}
+  .ic-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap;}
+  .ic-name{font-weight:700;font-size:14px;color:var(--navy);}
+  .ic-meta{font-size:11.5px;color:var(--muted);margin-top:2px;}
+  .modal-backdrop{position:fixed;inset:0;background:rgba(20,30,45,0.55);display:flex;align-items:flex-start;justify-content:center;padding:30px 14px;overflow-y:auto;z-index:50;}
+  .modal{background:#fff;border-radius:14px;max-width:560px;width:100%;padding:22px;}
+  .modal.wide{max-width:720px;}
+  .modal h3{margin-top:0;color:var(--navy);}
+  .close-x{float:right;cursor:pointer;font-size:18px;color:var(--muted);background:none;border:none;}
+  .small{font-size:11.5px;color:var(--muted);}
+  .flex{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  .footer-note{text-align:center;color:var(--muted);font-size:11.5px;margin-top:24px;}
+  .bar-row{display:grid;grid-template-columns:170px 1fr 90px;gap:10px;align-items:center;margin-bottom:8px;font-size:12.5px;}
+  .bar-track{background:#E9EEF3;border-radius:6px;height:14px;overflow:hidden;position:relative;display:flex;}
+  .bar-fill{background:var(--info);height:100%;}
+  .bar-fill.good{background:var(--good);}
+  .bar-fill.over{background:var(--bad);}
+  .ai-box{background:#FBF8F0;border:1px solid #EBDDB0;border-radius:8px;padding:12px 14px;margin-top:8px;font-size:13px;color:#5A4A1E;white-space:pre-wrap;}
+  .ai-box h4{margin:0 0 4px;color:#5A4A1E;font-size:12.5px;text-transform:uppercase;letter-spacing:0.3px;}
+  .warn-box{background:#FBEDEC;border:1px solid #F0C9C6;border-radius:8px;padding:12px 14px;margin-top:8px;font-size:12.5px;color:#7A2E2A;}
+  .unconfirmed-note{background:#FBEDEC;border:1px solid #F0C9C6;border-radius:8px;padding:10px 12px;font-size:12px;color:#7A2E2A;margin-bottom:14px;}
+  .demo-banner{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:#FBF8F0;border:1px solid #EBDDB0;border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:12.5px;color:#5A4A1E;}
+  .demo-banner button{flex-shrink:0;}
+  .phase-card{background:#fff;border:1px solid #E2E9F0;border-radius:10px;padding:14px;margin-bottom:14px;}
+  .phase-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap;}
+  .phase-title{font-weight:700;font-size:14.5px;color:var(--navy);}
+  .phase-meta{font-size:11.5px;color:var(--muted);margin-top:2px;}
+  .deliverable-row{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13px;}
+  .deliverable-row input[type=checkbox]{width:auto;}
+  .deliverable-row.done span{text-decoration:line-through;color:var(--muted);}
+  .model-card{background:#F7FAFC;border:1px solid #E2E9F0;border-radius:10px;padding:14px;}
+  .model-card.chosen{border-color:var(--gold);background:#FBF8F0;}
+  .model-card h4{margin:0 0 6px;color:var(--navy);font-size:13.5px;}
+  .model-card ul{margin:6px 0 0;padding-left:18px;font-size:12.5px;color:var(--muted);}
+  .photo-thumb{width:56px;height:56px;object-fit:cover;border-radius:6px;border:1px solid #DCE4EC;cursor:pointer;}
+  .lightbox{position:fixed;inset:0;background:rgba(10,15,25,0.85);display:flex;align-items:center;justify-content:center;z-index:60;padding:20px;}
+  .lightbox img{max-width:92%;max-height:92%;border-radius:8px;}
+  .mobile-only{display:none;}
+  @media(max-width:760px){
+    .desktop-only{display:none;}
+    .mobile-only{display:block;}
+  }
+  @media print{
+    header.app-header, nav.tabs, .no-print{display:none !important;}
+    body{background:#fff;}
+    main{max-width:100%;padding:0;}
+    .card{box-shadow:none;border:1px solid #999;}
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/plain" id="app-source">
+const { useState, useEffect, useMemo, useRef } = React;
+
+const STORAGE_KEY = "neil_totem_pole_tracker_v1";
+const DEFAULT_MODEL = "claude-sonnet-5";
+
+const CLUSTERS = ["CBD", "Trunk Route", "Transport Interchange", "Bus Stop", "Depot"];
+const CATEGORIES = ["Station (7m)", "Station (9m)", "Shelter", "Reduced Stop", "Temporary Pole"];
+const CONDITIONS = ["Good", "Fair", "Poor", "Beyond Repair"];
+// Straight from the Action Plan's "Activity Categories" table — the recommended
+// intervention is derived from condition, but stays editable per-pole since a
+// site visit can turn up something the blanket rule doesn't cover.
+const CONDITION_ACTION = {
+  "Good": "Minor cleaning only",
+  "Fair": "Repaint and minor repairs",
+  "Poor": "Full refurbishment",
+  "Beyond Repair": "Replacement recommendation"
+};
+const STATUSES = ["Logged", "Scheduled", "In Progress", "Refurbished", "Verified"];
+const DONE_STATUSES = ["Refurbished", "Verified"];
+const PRIORITIES = [1, 2, 3];
+const PRIORITY_LABEL = { 1: "Priority 1 — High Visibility", 2: "Priority 2", 3: "Priority 3" };
+// Example locations per tier, straight from Phase 2 of the Action Plan — shown
+// as guidance in the UI, not a hard rule for classifying any given pole.
+const PRIORITY_EXAMPLES = {
+  1: "Civic Centre, Adderley Street, CBD transport corridors, major MyCiTi stations, airport & tourism routes",
+  2: "Major interchanges, high passenger-volume stops",
+  3: "Remaining facilities"
+};
+
+function statusClass(s) { return "status-" + String(s).replace(/[^A-Za-z]/g, ""); }
+function condClass(c) { return "cond-" + String(c).replace(/[^A-Za-z]/g, ""); }
+function phaseStatusClass(s) { return "phase-" + String(s).replace(/[^A-Za-z]/g, ""); }
+
+function sanitizeApiKey(raw) {
+  return String(raw || "").replace(/\s+/g, "").replace(/[^\x20-\x7E]/g, "");
+}
+
+function friendlyErrorMessage(e) {
+  const msg = e && e.message ? e.message : String(e);
+  if (/ISO-8859-1|code point/i.test(msg)) {
+    return "Your API key contains a character the browser can't send (likely from copy-pasting). Try deleting it in Settings and re-typing or re-pasting it fresh.";
+  }
+  return msg;
+}
+
+async function callClaude(apiKey, model, prompt) {
+  const cleanKey = sanitizeApiKey(apiKey);
+  const resp = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-api-key": cleanKey,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true"
+    },
+    body: JSON.stringify({
+      model: model,
+      max_tokens: 1100,
+      messages: [{ role: "user", content: prompt }]
+    })
+  });
+  if (!resp.ok) {
+    const errText = await resp.text();
+    throw new Error("API error " + resp.status + ": " + errText.slice(0, 300));
+  }
+  const data = await resp.json();
+  const text = (data.content && data.content[0] && data.content[0].text) || "";
+  return text;
+}
+
+function uid() {
+  if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
+  return "id-" + Math.random().toString(36).slice(2) + Date.now();
+}
+function todayStr() { return new Date().toISOString().slice(0, 10); }
+function nowStamp() { return new Date().toISOString(); }
+function formatRand(n) {
+  const num = Number(n) || 0;
+  return "R " + num.toLocaleString("en-US");
+}
+
+function downloadFile(filename, content, mime) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function toCSVValue(v) {
+  if (v === undefined || v === null) return "";
+  const s = String(v);
+  if (s.includes(",") || s.includes('"') || s.includes("\n")) {
+    return '"' + s.replace(/"/g, '""') + '"';
+  }
+  return s;
+}
+
+function parseCSV(text) {
+  const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
+  if (lines.length === 0) return [];
+  const parseLine = (line) => {
+    const out = [];
+    let cur = "";
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') { inQuotes = !inQuotes; }
+      else if (ch === ',' && !inQuotes) { out.push(cur); cur = ""; }
+      else { cur += ch; }
+    }
+    out.push(cur);
+    return out.map(s => s.trim());
+  };
+  const header = parseLine(lines[0]).map(h => h.toLowerCase());
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cells = parseLine(lines[i]);
+    const rec = {};
+    header.forEach((h, idx) => { rec[h] = cells[idx] !== undefined ? cells[idx] : ""; });
+    rows.push(rec);
+  }
+  return rows;
+}
+
+function parseExcelFile(file, callback) {
+  try {
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const data = new Uint8Array(evt.target.result);
+        const workbook = XLSX.read(data, { type: "array" });
+        const sheetName = workbook.SheetNames[0];
+        if (!sheetName) { callback([]); return; }
+        const sheet = workbook.Sheets[sheetName];
+        const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+        const normalized = rows.map(r => {
+          const rec = {};
+          Object.keys(r).forEach(k => { rec[k.toLowerCase().trim()] = String(r[k] || "").trim(); });
+          return rec;
+        });
+        callback(normalized);
+      } catch (e) {
+        console.error("Error parsing Excel file", e);
+        callback([]);
+      }
+    };
+    reader.onerror = () => callback([]);
+    reader.readAsArrayBuffer(file);
+  } catch (e) {
+    console.error("Error reading Excel file", e);
+    callback([]);
+  }
+}
+
+// Resize a photo client-side before storing as a data URL, so a handful of
+// before/after site photos per pole doesn't blow past localStorage's quota.
+function resizeImageFile(file, maxDim, callback) {
+  try {
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) { height = Math.round(height * (maxDim / width)); width = maxDim; }
+          else { width = Math.round(width * (maxDim / height)); height = maxDim; }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, width, height);
+        callback(canvas.toDataURL("image/jpeg", 0.75));
+      };
+      img.onerror = () => callback(null);
+      img.src = evt.target.result;
+    };
+    reader.onerror = () => callback(null);
+    reader.readAsDataURL(file);
+  } catch (e) {
+    callback(null);
+  }
+}
+
+// Reference targets from the Zutari Conditional Report (June 2025), quoted
+// directly in the Action Plan's Phase 1 table. These are ballpark totals for
+// the whole network, not yet a pole-by-pole register — kept editable in
+// Settings since Phase 1's own job is to confirm them for real.
+function defaultClusterTargets() {
+  return [
+    { cluster: "CBD", low: 190, high: 200 },
+    { cluster: "Trunk Route", low: 280, high: 315 },
+    { cluster: "Transport Interchange", low: 10, high: 12 },
+    { cluster: "Bus Stop", low: 860, high: null },
+    { cluster: "Depot", low: 5, high: 5 }
+  ];
+}
+
+function defaultPhases() {
+  return [
+    {
+      id: "phase-1", name: "Phase 1: Asset Verification & Assessment", weeks: "Week 1–4", targetDate: "By ~7 Aug 2026",
+      status: "In Progress",
+      deliverables: [
+        { text: "Confirm total totem poles at stations (86, across 43 stations)", done: true },
+        { text: "Categorise into Phase 1A–1D (Stations / Shelters / Reduced Stops / Temporary)", done: true },
+        { text: "Build GIS-based inventory & condition register", done: false },
+        { text: "Confirm FM Contractor scaffolding teams (2 x 4 people, 40 days from PO)", done: false },
+        { text: "Confirm paint procurement route via stores (RIM)", done: false }
+      ],
+      notes: ""
+    },
+    {
+      id: "phase-2", name: "Phase 2: Prioritisation Strategy", weeks: "Week 5", targetDate: "",
+      status: "Not Started",
+      deliverables: [{ text: "Assign Priority 1 / 2 / 3 tiers to all logged poles", done: false }],
+      notes: ""
+    },
+    {
+      id: "phase-3", name: "Phase 3: Design & Standardisation", weeks: "Week 5–7", targetDate: "",
+      status: "Not Started",
+      deliverables: [
+        { text: "Develop standard refurbishment specification (prep, rust treatment, priming, paint system, decals)", done: false },
+        { text: "Define quality standard (branding, visibility, corrosion protection)", done: false }
+      ],
+      notes: ""
+    },
+    {
+      id: "phase-4", name: "Phase 4: Resource & Funding Model", weeks: "Week 8", targetDate: "",
+      status: "Not Started",
+      deliverables: [{ text: "Decide delivery model (Option A/B/C) in collaboration with RIM", done: false }],
+      notes: ""
+    },
+    {
+      id: "phase-5", name: "Phase 5: Pilot Rollout", weeks: "August 2026", targetDate: "August 2026",
+      status: "Not Started",
+      deliverables: [
+        { text: "Select pilot corridor (e.g. Civic Centre to Lagoon Beach / CBD Cluster)", done: false },
+        { text: "Validate paint system", done: false },
+        { text: "Measure productivity & refine budgeting", done: false }
+      ],
+      notes: ""
+    },
+    {
+      id: "phase-6", name: "Phase 6: Full Implementation", weeks: "September–October 2026", targetDate: "Weather permitting",
+      status: "Not Started",
+      deliverables: [
+        { text: "CBD cluster complete", done: false },
+        { text: "Interchanges complete", done: false },
+        { text: "Stations complete", done: false },
+        { text: "Remaining stops complete", done: false }
+      ],
+      notes: ""
+    },
+    {
+      id: "phase-7", name: "Phase 7: Reporting & Close-Out", weeks: "September/October 2026", targetDate: "",
+      status: "Not Started",
+      deliverables: [
+        { text: "Before-and-after photographs", done: false },
+        { text: "Updated asset register", done: false },
+        { text: "Financial report", done: false },
+        { text: "Completion certificates", done: false },
+        { text: "Maintenance recommendations", done: false }
+      ],
+      notes: ""
+    }
+  ];
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch (e) {
+    console.error("Failed to load saved state", e);
+    return null;
+  }
+}
+function saveState(state) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch (e) {
+    console.error("Failed to save state", e);
+  }
+}
+
+// Example data shown on first open so the tool isn't a blank shell. Every
+// seeded record carries _demo: true so it can be cleared in one click, same
+// pattern as the rest of the toolkit. Numbers reflect where the real project
+// actually is: Phase 1 just started, most poles logged but not yet worked on.
+function demoSeed() {
+  function mk(poleId, location, cluster, category, condition, priority, cost, status) {
+    return {
+      id: uid(), _demo: true, poleId, location, cluster, category, condition,
+      intervention: CONDITION_ACTION[condition], priority, estimatedCost: cost, status,
+      photoBefore: "", photoAfter: "", dateAssessed: todayStr(), dateCompleted: "",
+      notes: "", activity: [{ date: nowStamp(), note: "Logged (" + condition + ")" }]
+    };
+  }
+  return {
+    poles: [
+      mk("TP-001", "Civic Centre", "CBD", "Station (7m)", "Fair", 1, 8500, "Logged"),
+      mk("TP-002", "Adderley Street", "CBD", "Station (7m)", "Poor", 1, 15000, "Scheduled"),
+      mk("TP-003", "Cape Town Station Interchange", "Transport Interchange", "Station (9m)", "Beyond Repair", 1, 42000, "In Progress"),
+      mk("TP-004", "Wynberg Taxi Rank", "Trunk Route", "Station (7m)", "Good", 2, 1200, "Refurbished"),
+      mk("TP-005", "Bellville PTI", "Trunk Route", "Shelter", "Fair", 2, 6000, "Verified"),
+      mk("TP-006", "Mitchells Plain PTI", "Trunk Route", "Station (9m)", "Poor", 2, 18000, "Logged"),
+      mk("TP-007", "Khayelitsha Site B", "Bus Stop", "Reduced Stop", "Fair", 3, 3000, "Logged"),
+      mk("TP-008", "Nyanga Terminus", "Bus Stop", "Reduced Stop", "Good", 3, 900, "Logged"),
+      mk("TP-009", "Airport Approach Road", "CBD", "Station (7m)", "Fair", 1, 8500, "Logged"),
+      mk("TP-010", "Athlone Depot", "Depot", "Temporary Pole", "Beyond Repair", 3, 5000, "Logged"),
+      mk("TP-011", "Sea Point Promenade Stop", "Bus Stop", "Reduced Stop", "Good", 3, 900, "Logged"),
+      mk("TP-012", "Maitland Interchange", "Transport Interchange", "Station (9m)", "Fair", 2, 12000, "Scheduled")
+    ],
+    phases: defaultPhases(),
+    clusterTargets: defaultClusterTargets(),
+    resource: {
+      chosenModel: "",
+      budgetAllocated: 4500000,
+      budgetSpent: 125000,
+      contractorNotes: "FM Contractor to be utilised for scaffolding (2 teams of 4). Paint procurement route via stores (RIM) still to be confirmed.",
+      resourceNotes: "The Action Plan itself flags the Hybrid Model (Option B) as usually fastest — noted here as the plan's own recommendation, not yet confirmed as the chosen model with RIM."
+    },
+    summaryNotes: ""
+  };
+}
+
+function StatCard({ num, label, alert }) {
+  return (
+    <div className={"stat" + (alert ? " alert" : "")}>
+      <div className="num">{num}</div>
+      <div className="lbl">{label}</div>
+    </div>
+  );
+}
+
+// --- Metrics -------------------------------------------------------------
+// Pure function so it's directly testable and so the AI prompt and the
+// on-screen dashboard always agree on the same numbers.
+function computeMetrics(poles, phases, resource, clusterTargets) {
+  const totalAssessed = poles.length;
+  const totalRefurbished = poles.filter(p => DONE_STATUSES.includes(p.status)).length;
+  const pctComplete = totalAssessed > 0 ? Math.round((totalRefurbished / totalAssessed) * 100) : 0;
+
+  const conditionBreakdown = { Good: 0, Fair: 0, Poor: 0, "Beyond Repair": 0 };
+  poles.forEach(p => { if (conditionBreakdown[p.condition] !== undefined) conditionBreakdown[p.condition] += 1; });
+
+  const clusterCoverage = (clusterTargets || []).map(t => {
+    const entered = poles.filter(p => p.cluster === t.cluster).length;
+    const pct = t.low > 0 ? Math.min(100, Math.round((entered / t.low) * 100)) : 0;
+    return { cluster: t.cluster, entered, low: t.low, high: t.high, pct };
+  });
+
+  const priorityProgress = PRIORITIES.map(p => {
+    const inTier = poles.filter(pl => pl.priority === p);
+    const done = inTier.filter(pl => DONE_STATUSES.includes(pl.status)).length;
+    return { priority: p, total: inTier.length, done, pct: inTier.length > 0 ? Math.round((done / inTier.length) * 100) : 0 };
+  });
+
+  const phaseSummary = (phases || []).map(ph => ({
+    name: ph.name, status: ph.status, weeks: ph.weeks,
+    deliverablesDone: (ph.deliverables || []).filter(d => d.done).length,
+    deliverablesTotal: (ph.deliverables || []).length
+  }));
+
+  const totalEstimatedCostRegister = poles.reduce((sum, p) => sum + (Number(p.estimatedCost) || 0), 0);
+  const budgetAllocated = (resource && Number(resource.budgetAllocated)) || 0;
+  const budgetSpent = (resource && Number(resource.budgetSpent)) || 0;
+  const budgetPct = budgetAllocated > 0 ? Math.round((budgetSpent / budgetAllocated) * 100) : 0;
+
+  const visualDocCount = poles.filter(p => p.photoBefore && p.photoAfter).length;
+
+  return {
+    totalAssessed, totalRefurbished, pctComplete, conditionBreakdown, clusterCoverage,
+    priorityProgress, phaseSummary, totalEstimatedCostRegister, budgetAllocated, budgetSpent,
+    budgetPct, visualDocCount, chosenModel: (resource && resource.chosenModel) || "(not yet decided)"
+  };
+}
+
+function buildExecutiveSummaryPrompt(metrics, notes) {
+  const condLines = Object.keys(metrics.conditionBreakdown).map(k => k + ": " + metrics.conditionBreakdown[k]).join(", ");
+  const clusterLines = metrics.clusterCoverage.map(c =>
+    c.cluster + ": " + c.entered + " logged vs target " + c.low + (c.high ? "–" + c.high : "+") + " (" + c.pct + "% coverage)"
+  ).join("; ");
+  const priorityLines = metrics.priorityProgress.map(p =>
+    PRIORITY_LABEL[p.priority] + ": " + p.done + "/" + p.total + " refurbished (" + p.pct + "%)"
+  ).join("; ");
+  const phaseLines = metrics.phaseSummary.map(p =>
+    p.name + " — " + p.status + " (" + p.deliverablesDone + "/" + p.deliverablesTotal + " deliverables done)"
+  ).join("\n");
+  const styleNote = (notes || "").trim() ? "\n\nStyle notes to follow: " + notes.trim() : "";
+
+  return "You are writing a short executive status summary for Neil Arendse, Senior Manager: Public Transportation Facilities Management and Enforcement, City of Cape Town, on the Totem Pole Repainting project (repainting/refurbishing public transport totem poles across the network, target completion September/October 2026)." + styleNote + "\n\n"
+    + "Respond with ONLY a JSON object, no other text, matching exactly this shape:\n"
+    + '{"execSummary": "2-3 sentence overview of where the project stands right now", "progressHighlights": "bullet-style lines (use \\n between them) of genuine progress so far", "risksAndBlockers": "bullet-style lines (use \\n between them) of real risks or blockers visible in the data below", "nextSteps": "bullet-style lines (use \\n between them) of the most useful next actions"}\n\n'
+    + "=== PROJECT DATA ===\n"
+    + "Total poles assessed/logged: " + metrics.totalAssessed + "\n"
+    + "Total poles refurbished/verified: " + metrics.totalRefurbished + " (" + metrics.pctComplete + "% of logged poles)\n"
+    + "Condition breakdown: " + condLines + "\n"
+    + "Cluster coverage vs Zutari reference targets: " + clusterLines + "\n"
+    + "Priority tier progress: " + priorityLines + "\n"
+    + "Phase status:\n" + phaseLines + "\n"
+    + "Budget allocated: R" + metrics.budgetAllocated + " · Budget spent: R" + metrics.budgetSpent + " (" + metrics.budgetPct + "%)\n"
+    + "Total estimated cost from register entries so far: R" + metrics.totalEstimatedCostRegister + "\n"
+    + "Delivery model chosen: " + metrics.chosenModel + "\n"
+    + "Before/after photo pairs documented (visual improvement evidence): " + metrics.visualDocCount + "\n\n"
+    + "Reference every number above accurately — do not invent figures not shown here. Reference specific phases/clusters by name where relevant.";
+}
+
+function parseTolerantJSON(raw) {
+  try { return JSON.parse(raw); } catch (e) {
+    const match = raw.match(/\{[\s\S]*\}/);
+    if (match) { try { return JSON.parse(match[0]); } catch (e2) { /* fall through */ } }
+    return null;
+  }
+}
+
+function PhotoLightbox({ src, onClose }) {
+  if (!src) return null;
+  return (
+    <div className="lightbox" onClick={onClose}>
+      <img src={src} alt="Pole photo" />
+    </div>
+  );
+}
+
+function PoleForm({ initial, onSave, onCancel }) {
+  const [p, setP] = useState(initial || {
+    id: uid(), poleId: "", location: "", cluster: CLUSTERS[0], category: CATEGORIES[0],
+    condition: "Fair", intervention: CONDITION_ACTION["Fair"], priority: 2, estimatedCost: "",
+    status: "Logged", photoBefore: "", photoAfter: "", dateAssessed: todayStr(), dateCompleted: "",
+    notes: "", activity: []
+  });
+  const set = (k, v) => setP(prev => ({ ...prev, [k]: v }));
+
+  function setCondition(c) {
+    setP(prev => ({ ...prev, condition: c, intervention: CONDITION_ACTION[c] || prev.intervention }));
+  }
+
+  function handlePhoto(which, e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    resizeImageFile(file, 800, (dataUrl) => { if (dataUrl) set(which, dataUrl); });
+    e.target.value = "";
+  }
+
+  function submit() {
+    if (!p.poleId.trim() || !p.location.trim()) { alert("Pole ID and Location are required."); return; }
+    const prevStatus = initial ? initial.status : null;
+    let activity = p.activity || [];
+    if (prevStatus !== p.status) {
+      activity = [...activity, { date: nowStamp(), note: (prevStatus ? "Status changed to " : "Logged (") + p.status + (prevStatus ? "" : ")") }];
+    }
+    onSave({ ...p, activity });
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}>
+      <div className="modal wide">
+        <button className="close-x" onClick={onCancel}>✕</button>
+        <h3>{initial ? "Edit Pole" : "Add Pole"}</h3>
+        <div className="grid cols-2">
+          <div className="field"><label>Pole ID</label><input type="text" value={p.poleId} onChange={e => set("poleId", e.target.value)} placeholder="e.g. TP-013" /></div>
+          <div className="field"><label>Location</label><input type="text" value={p.location} onChange={e => set("location", e.target.value)} placeholder="e.g. Civic Centre" /></div>
+          <div className="field"><label>Cluster</label>
+            <select value={p.cluster} onChange={e => set("cluster", e.target.value)}>{CLUSTERS.map(c => <option key={c}>{c}</option>)}</select>
+          </div>
+          <div className="field"><label>Category</label>
+            <select value={p.category} onChange={e => set("category", e.target.value)}>{CATEGORIES.map(c => <option key={c}>{c}</option>)}</select>
+          </div>
+          <div className="field"><label>Condition</label>
+            <select value={p.condition} onChange={e => setCondition(e.target.value)}>{CONDITIONS.map(c => <option key={c}>{c}</option>)}</select>
+          </div>
+          <div className="field"><label>Priority</label>
+            <select value={p.priority} onChange={e => set("priority", Number(e.target.value))}>{PRIORITIES.map(pr => <option key={pr} value={pr}>{PRIORITY_LABEL[pr]}</option>)}</select>
+          </div>
+          <div className="field"><label>Status</label>
+            <select value={p.status} onChange={e => set("status", e.target.value)}>{STATUSES.map(s => <option key={s}>{s}</option>)}</select>
+          </div>
+          <div className="field"><label>Estimated Cost (R)</label><input type="number" value={p.estimatedCost} onChange={e => set("estimatedCost", e.target.value)} placeholder="0" /></div>
+          <div className="field"><label>Date Assessed</label><input type="date" value={p.dateAssessed} onChange={e => set("dateAssessed", e.target.value)} /></div>
+          <div className="field"><label>Date Completed</label><input type="date" value={p.dateCompleted} onChange={e => set("dateCompleted", e.target.value)} /></div>
+        </div>
+        <div className="field">
+          <label>Recommended Intervention</label>
+          <input type="text" value={p.intervention} onChange={e => set("intervention", e.target.value)} />
+          <p className="small">Auto-filled from condition ({CONDITION_ACTION[p.condition]}) — edit if the site visit found something different.</p>
+        </div>
+        <div className="grid cols-2">
+          <div className="field">
+            <label>Before Photo</label>
+            {p.photoBefore && <img src={p.photoBefore} className="photo-thumb" style={{ marginBottom: "6px" }} />}
+            <input type="file" accept="image/*" onChange={e => handlePhoto("photoBefore", e)} />
+          </div>
+          <div className="field">
+            <label>After Photo</label>
+            {p.photoAfter && <img src={p.photoAfter} className="photo-thumb" style={{ marginBottom: "6px" }} />}
+            <input type="file" accept="image/*" onChange={e => handlePhoto("photoAfter", e)} />
+          </div>
+        </div>
+        <div className="field"><label>Notes</label><textarea rows="2" value={p.notes} onChange={e => set("notes", e.target.value)} /></div>
+        <div className="flex" style={{ justifyContent: "flex-end", marginTop: "10px" }}>
+          <button className="btn ghost" onClick={onCancel}>Cancel</button>
+          <button className="btn gold" onClick={submit}>Save Pole</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const saved = loadState();
+  const seed = saved || demoSeed();
+  const [poles, setPoles] = useState(seed.poles || []);
+  const [phases, setPhases] = useState(seed.phases && seed.phases.length ? seed.phases : defaultPhases());
+  const [clusterTargets, setClusterTargets] = useState(seed.clusterTargets && seed.clusterTargets.length ? seed.clusterTargets : defaultClusterTargets());
+  const [resource, setResource] = useState(seed.resource || { chosenModel: "", budgetAllocated: 0, budgetSpent: 0, contractorNotes: "", resourceNotes: "" });
+  const [summaryNotes, setSummaryNotes] = useState(seed.summaryNotes || "");
+  const [apiKey, setApiKey] = useState(saved && saved.apiKey ? saved.apiKey : "");
+  const [model, setModel] = useState(saved && saved.model ? saved.model : DEFAULT_MODEL);
+
+  const [tab, setTab] = useState("dashboard");
+  const [showPoleForm, setShowPoleForm] = useState(false);
+  const [editingPole, setEditingPole] = useState(null);
+  const [lightboxSrc, setLightboxSrc] = useState(null);
+  const [search, setSearch] = useState("");
+  const [filterCluster, setFilterCluster] = useState("All");
+  const [filterCondition, setFilterCondition] = useState("All");
+  const [filterPriority, setFilterPriority] = useState("All");
+  const [filterStatus, setFilterStatus] = useState("All");
+  const [csvPasteText, setCsvPasteText] = useState("");
+  const [aiSummary, setAiSummary] = useState(null);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiError, setAiError] = useState("");
+  const [copied, setCopied] = useState(false);
+  const [excelPreviewRows, setExcelPreviewRows] = useState([]);
+  const [showExcelPreview, setShowExcelPreview] = useState(false);
+
+  useEffect(() => {
+    saveState({ poles, phases, clusterTargets, resource, summaryNotes, apiKey, model });
+  }, [poles, phases, clusterTargets, resource, summaryNotes, apiKey, model]);
+
+  const metrics = useMemo(() => computeMetrics(poles, phases, resource, clusterTargets), [poles, phases, resource, clusterTargets]);
+
+  const filteredPoles = useMemo(() => {
+    return poles.filter(p => {
+      if (filterCluster !== "All" && p.cluster !== filterCluster) return false;
+      if (filterCondition !== "All" && p.condition !== filterCondition) return false;
+      if (filterPriority !== "All" && String(p.priority) !== filterPriority) return false;
+      if (filterStatus !== "All" && p.status !== filterStatus) return false;
+      if (search.trim()) {
+        const q = search.trim().toLowerCase();
+        if (!(p.poleId.toLowerCase().includes(q) || p.location.toLowerCase().includes(q))) return false;
+      }
+      return true;
+    });
+  }, [poles, search, filterCluster, filterCondition, filterPriority, filterStatus]);
+
+  const hasDemo = useMemo(() => poles.some(p => p._demo), [poles]);
+
+  function clearDemoData() {
+    if (!window.confirm("Clear the example poles and start fresh?\n\nAnything you've already added yourself is kept.")) return;
+    setPoles(prev => prev.filter(p => !p._demo));
+  }
+
+  function savePole(p) {
+    setPoles(prev => {
+      const exists = prev.some(x => x.id === p.id);
+      if (exists) return prev.map(x => x.id === p.id ? p : x);
+      return [...prev, p];
+    });
+    setShowPoleForm(false);
+    setEditingPole(null);
+  }
+
+  function deletePole(id) {
+    if (!window.confirm("Delete this pole record? This cannot be undone.")) return;
+    setPoles(prev => prev.filter(p => p.id !== id));
+  }
+
+  function updatePhase(id, patch) {
+    setPhases(prev => prev.map(ph => ph.id === id ? { ...ph, ...patch } : ph));
+  }
+  function toggleDeliverable(phaseId, idx) {
+    setPhases(prev => prev.map(ph => {
+      if (ph.id !== phaseId) return ph;
+      const deliverables = ph.deliverables.map((d, i) => i === idx ? { ...d, done: !d.done } : d);
+      return { ...ph, deliverables };
+    }));
+  }
+
+  function updateClusterTarget(idx, patch) {
+    setClusterTargets(prev => prev.map((t, i) => i === idx ? { ...t, ...patch } : t));
+  }
+
+  async function generateExecutiveSummary() {
+    if (!apiKey) { alert("Add your Anthropic API key in Settings first."); setTab("settings"); return; }
+    setAiBusy(true);
+    setAiError("");
+    try {
+      const prompt = buildExecutiveSummaryPrompt(metrics, summaryNotes);
+      const raw = await callClaude(apiKey, model, prompt);
+      const parsed = parseTolerantJSON(raw);
+      if (parsed) setAiSummary(parsed);
+      else setAiSummary({ execSummary: raw, progressHighlights: "", risksAndBlockers: "", nextSteps: "" });
+    } catch (e) {
+      setAiError(friendlyErrorMessage(e));
+    } finally {
+      setAiBusy(false);
+    }
+  }
+
+  async function copySummaryToClipboard() {
+    if (!aiSummary) return;
+    const text = "EXECUTIVE SUMMARY\n" + aiSummary.execSummary + "\n\nPROGRESS HIGHLIGHTS\n" + aiSummary.progressHighlights
+      + "\n\nRISKS & BLOCKERS\n" + aiSummary.risksAndBlockers + "\n\nNEXT STEPS\n" + aiSummary.nextSteps;
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (e) {
+      const ta = document.createElement("textarea");
+      ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.focus(); ta.select();
+      try { document.execCommand("copy"); } catch (e2) { /* nothing more to do */ }
+      document.body.removeChild(ta);
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  function exportPolesCSV() {
+    const header = ["PoleID", "Location", "Cluster", "Category", "Condition", "Intervention", "Priority", "EstimatedCost", "Status", "DateAssessed", "DateCompleted", "Notes"];
+    const lines = [header.join(",")];
+    poles.forEach(p => {
+      lines.push([
+        toCSVValue(p.poleId), toCSVValue(p.location), toCSVValue(p.cluster), toCSVValue(p.category),
+        toCSVValue(p.condition), toCSVValue(p.intervention), p.priority, p.estimatedCost || 0,
+        toCSVValue(p.status), toCSVValue(p.dateAssessed), toCSVValue(p.dateCompleted), toCSVValue(p.notes)
+      ].join(","));
+    });
+    downloadFile("totem_pole_register_" + todayStr() + ".csv", lines.join("\n"), "text/csv");
+  }
+
+  function downloadCSVTemplate() {
+    const header = ["PoleID", "Location", "Cluster", "Category", "Condition", "Priority", "EstimatedCost", "Status", "DateAssessed", "Notes"];
+    const example = ["TP-013", "Example Location", "CBD", "Station (7m)", "Fair", "1", "8500", "Logged", todayStr(), ""];
+    downloadFile("totem_pole_import_template.csv", header.join(",") + "\n" + example.join(","), "text/csv");
+  }
+
+  function importRows(rows) {
+    if (!rows.length) { alert("No rows found to import."); return; }
+    const imported = rows.map(r => {
+      const condition = CONDITIONS.includes(r.condition) ? r.condition : "Fair";
+      const priority = [1, 2, 3].includes(Number(r.priority)) ? Number(r.priority) : 2;
+      const status = STATUSES.includes(r.status) ? r.status : "Logged";
+      return {
+        id: uid(), _demo: false,
+        poleId: r.poleid || r.poleId || "", location: r.location || "",
+        cluster: CLUSTERS.includes(r.cluster) ? r.cluster : CLUSTERS[0],
+        category: CATEGORIES.includes(r.category) ? r.category : CATEGORIES[0],
+        condition, intervention: CONDITION_ACTION[condition], priority,
+        estimatedCost: Number(r.estimatedcost || r.estimatedCost) || 0, status,
+        photoBefore: "", photoAfter: "", dateAssessed: r.dateassessed || todayStr(), dateCompleted: "",
+        notes: r.notes || "", activity: [{ date: nowStamp(), note: "Imported via CSV (" + status + ")" }]
+      };
+    }).filter(p => p.poleId.trim());
+    if (!imported.length) { alert("No valid rows found — check the PoleID column is filled in."); return; }
+    // A real bulk import replaces the placeholder example data automatically.
+    setPoles(prev => [...prev.filter(p => !p._demo), ...imported]);
+    alert(imported.length + " pole" + (imported.length === 1 ? "" : "s") + " imported.");
+  }
+
+  function importPasteCSV() {
+    const rows = parseCSV(csvPasteText);
+    importRows(rows);
+    setCsvPasteText("");
+  }
+
+  function importCSVFile(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => importRows(parseCSV(evt.target.result));
+    reader.readAsText(file);
+    e.target.value = "";
+  }
+
+  function importExcelFile(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    parseExcelFile(file, (rows) => {
+      if (!rows.length) { alert("No data found in Excel file."); e.target.value = ""; return; }
+      setExcelPreviewRows(rows);
+      setShowExcelPreview(true);
+    });
+    e.target.value = "";
+  }
+
+  function confirmExcelImport() {
+    importRows(excelPreviewRows);
+    setExcelPreviewRows([]);
+    setShowExcelPreview(false);
+  }
+
+  function cancelExcelImport() {
+    setExcelPreviewRows([]);
+    setShowExcelPreview(false);
+  }
+
+  function exportJSONBackup() {
+    const payload = { poles, phases, clusterTargets, resource, summaryNotes, model, exportedAt: new Date().toISOString() };
+    downloadFile("totem_pole_tracker_backup_" + todayStr() + ".json", JSON.stringify(payload, null, 2), "application/json");
+  }
+
+  function importJSONBackup(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const data = JSON.parse(evt.target.result);
+        if (!window.confirm("This will replace all current poles, phases and settings with the backup file. Continue?")) return;
+        setPoles(data.poles || []);
+        setPhases(data.phases && data.phases.length ? data.phases : defaultPhases());
+        setClusterTargets(data.clusterTargets && data.clusterTargets.length ? data.clusterTargets : defaultClusterTargets());
+        setResource(data.resource || { chosenModel: "", budgetAllocated: 0, budgetSpent: 0, contractorNotes: "", resourceNotes: "" });
+        setSummaryNotes(data.summaryNotes || "");
+        if (data.model) setModel(data.model);
+        alert("Backup restored.");
+      } catch (err) {
+        alert("Could not read that file — is it a valid backup JSON?");
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  }
+
+  const jsonInputRef = useRef(null);
+  const csvFileInputRef = useRef(null);
+  const excelFileInputRef = useRef(null);
+  const maxClusterEntered = Math.max(1, ...metrics.clusterCoverage.map(c => c.entered));
+  const maxPriorityTotal = Math.max(1, ...metrics.priorityProgress.map(p => p.total));
+
+  return (
+    <React.Fragment>
+      <header className="app-header">
+        <div className="header-row">
+          <div>
+            <h1>Totem Pole Refurbishment Tracker</h1>
+            <p>Public Transportation Facilities Management — City of Cape Town</p>
+          </div>
+          <span className="gold-badge">{metrics.totalAssessed} pole{metrics.totalAssessed === 1 ? "" : "s"} logged · {metrics.pctComplete}% refurbished</span>
+        </div>
+      </header>
+      <nav className="tabs">
+        <button className={tab === "dashboard" ? "active" : ""} onClick={() => setTab("dashboard")}>Executive Dashboard</button>
+        <button className={tab === "register" ? "active" : ""} onClick={() => setTab("register")}>Asset Register</button>
+        <button className={tab === "phases" ? "active" : ""} onClick={() => setTab("phases")}>Phases &amp; Roadmap</button>
+        <button className={tab === "priority" ? "active" : ""} onClick={() => setTab("priority")}>Priority &amp; Clusters</button>
+        <button className={tab === "resource" ? "active" : ""} onClick={() => setTab("resource")}>Resource &amp; Funding</button>
+        <button className={tab === "import" ? "active" : ""} onClick={() => setTab("import")}>Import / Export</button>
+        <button className={tab === "settings" ? "active" : ""} onClick={() => setTab("settings")}>Settings</button>
+      </nav>
+      <main>
+        {hasDemo && (
+          <div className="demo-banner no-print">
+            <span><b>Example data loaded.</b> These are sample poles so you can explore how the tracker works. When you're ready, clear them and log the real register from Phase 1's assessment.</span>
+            <button className="btn small gold" onClick={clearDemoData}>Clear example data</button>
+          </div>
+        )}
+
+        {tab === "dashboard" && (
+          <React.Fragment>
+            <div className="grid cols-4">
+              <StatCard num={metrics.totalAssessed} label="Total poles assessed" />
+              <StatCard num={metrics.totalRefurbished} label="Total poles refurbished" />
+              <StatCard num={metrics.pctComplete + "%"} label="Percentage completed" />
+              <StatCard num={formatRand(metrics.budgetSpent)} label="Budget spent" alert={metrics.budgetPct >= 90} />
+            </div>
+            <div className="card">
+              <div className="flex" style={{ justifyContent: "space-between" }}>
+                <h2>AI Executive Summary</h2>
+                <button className="btn gold no-print" disabled={aiBusy} onClick={generateExecutiveSummary}>{aiBusy ? "Generating..." : "Generate Executive Summary"}</button>
+              </div>
+              <p className="small">One click sends the live figures below (assessed/refurbished counts, phase status, cluster coverage, budget) to Claude and drafts a written status update for handing upward.</p>
+              {aiError && <div className="warn-box">{aiError}</div>}
+              {aiSummary && (
+                <React.Fragment>
+                  <div className="ai-box">
+                    <h4>Executive Summary</h4>
+                    {aiSummary.execSummary}
+                  </div>
+                  {aiSummary.progressHighlights && <div className="ai-box"><h4>Progress Highlights</h4>{aiSummary.progressHighlights}</div>}
+                  {aiSummary.risksAndBlockers && <div className="ai-box"><h4>Risks &amp; Blockers</h4>{aiSummary.risksAndBlockers}</div>}
+                  {aiSummary.nextSteps && <div className="ai-box"><h4>Next Steps</h4>{aiSummary.nextSteps}</div>}
+                  <div className="flex no-print" style={{ marginTop: "8px" }}>
+                    <button className="btn ghost small" onClick={copySummaryToClipboard}>{copied ? "Copied!" : "Copy Summary"}</button>
+                    <button className="btn ghost small" onClick={() => window.print()}>Export as PDF</button>
+                  </div>
+                </React.Fragment>
+              )}
+            </div>
+            <div className="card">
+              <h2>Condition Breakdown</h2>
+              <p className="small">Straight from the Action Plan's Activity Categories: Good → cleaning only, Fair → repaint, Poor → full refurbishment, Beyond Repair → replacement.</p>
+              <div className="grid cols-4">
+                {CONDITIONS.map(c => (
+                  <div className="stat" key={c}>
+                    <div className="num">{metrics.conditionBreakdown[c]}</div>
+                    <div className="lbl"><span className={"badge cond-" + c.replace(/[^A-Za-z]/g, "")}>{c}</span></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="card">
+              <h2>Cluster Coverage</h2>
+              <p className="small">Poles logged in the register so far vs the Zutari Conditional Report (June 2025) reference targets, editable in Settings.</p>
+              {metrics.clusterCoverage.map(c => (
+                <div className="bar-row" key={c.cluster}>
+                  <div>{c.cluster}</div>
+                  <div className="bar-track">
+                    <div className={"bar-fill" + (c.pct >= 100 ? " good" : "")} style={{ width: Math.min(100, (c.entered / maxClusterEntered) * 100) + "%" }}></div>
+                  </div>
+                  <div className="small">{c.entered} / {c.low}{c.high ? "–" + c.high : "+"}</div>
+                </div>
+              ))}
+            </div>
+            <div className="card">
+              <h2>Priority Tier Progress</h2>
+              {metrics.priorityProgress.map(p => (
+                <div className="bar-row" key={p.priority}>
+                  <div>{PRIORITY_LABEL[p.priority]}</div>
+                  <div className="bar-track">
+                    <div className="bar-fill good" style={{ width: (p.total ? (p.done / p.total) * 100 : 0) + "%" }}></div>
+                  </div>
+                  <div className="small">{p.done} / {p.total} ({p.pct}%)</div>
+                </div>
+              ))}
+            </div>
+            <div className="card">
+              <h2>Phase Status</h2>
+              <div className="flex" style={{ flexWrap: "wrap" }}>
+                {phases.map(ph => (
+                  <span key={ph.id} className="pill" style={{ marginBottom: "6px" }}>
+                    {ph.name.replace(/^Phase \d+: /, "")} <span className={"badge " + phaseStatusClass(ph.status)} style={{ marginLeft: "6px" }}>{ph.status}</span>
+                  </span>
+                ))}
+              </div>
+              <p className="small" style={{ marginTop: "8px" }}>See the Phases &amp; Roadmap tab to update status and deliverable checklists.</p>
+            </div>
+            <div className="card">
+              <h2>Visual Improvement Outcomes</h2>
+              <p className="small">{metrics.visualDocCount} pole{metrics.visualDocCount === 1 ? "" : "s"} with both a before and an after photo on file — the Phase 7 close-out deliverable this figure feeds directly.</p>
+              {metrics.visualDocCount === 0 && <p className="small">None documented yet — this fills in automatically as before/after photos are captured on the Asset Register tab.</p>}
+              <div className="flex">
+                {poles.filter(p => p.photoBefore && p.photoAfter).map(p => (
+                  <div key={p.id} className="flex">
+                    <img src={p.photoBefore} className="photo-thumb" onClick={() => setLightboxSrc(p.photoBefore)} />
+                    <img src={p.photoAfter} className="photo-thumb" onClick={() => setLightboxSrc(p.photoAfter)} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </React.Fragment>
+        )}
+
+        {tab === "register" && (
+          <React.Fragment>
+            <div className="toolbar">
+              <button className="btn gold" onClick={() => { setEditingPole(null); setShowPoleForm(true); }}>+ Add Pole</button>
+              <input type="text" placeholder="Search Pole ID or location..." value={search} onChange={e => setSearch(e.target.value)} />
+              <select value={filterCluster} onChange={e => setFilterCluster(e.target.value)}><option>All</option>{CLUSTERS.map(c => <option key={c}>{c}</option>)}</select>
+              <select value={filterCondition} onChange={e => setFilterCondition(e.target.value)}><option>All</option>{CONDITIONS.map(c => <option key={c}>{c}</option>)}</select>
+              <select value={filterPriority} onChange={e => setFilterPriority(e.target.value)}><option value="All">All Priorities</option>{PRIORITIES.map(p => <option key={p} value={p}>{PRIORITY_LABEL[p]}</option>)}</select>
+              <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}><option>All</option>{STATUSES.map(s => <option key={s}>{s}</option>)}</select>
+              <span className="pill">{filteredPoles.length} of {poles.length} poles</span>
+            </div>
+            {filteredPoles.length === 0 && <p className="small">No poles match the current filters.</p>}
+            <div className="desktop-only">
+              <table>
+                <thead>
+                  <tr><th>Pole ID</th><th>Location</th><th>Cluster</th><th>Category</th><th>Condition</th><th>Priority</th><th>Status</th><th>Est. Cost</th><th></th></tr>
+                </thead>
+                <tbody>
+                  {filteredPoles.map(p => (
+                    <tr key={p.id}>
+                      <td>{p.poleId}</td>
+                      <td>{p.location}</td>
+                      <td>{p.cluster}</td>
+                      <td>{p.category}</td>
+                      <td><span className={"badge " + condClass(p.condition)}>{p.condition}</span></td>
+                      <td><span className={"badge priority-" + p.priority}>P{p.priority}</span></td>
+                      <td><span className={"badge " + statusClass(p.status)}>{p.status}</span></td>
+                      <td>{formatRand(p.estimatedCost)}</td>
+                      <td>
+                        <div className="flex">
+                          <button className="btn ghost small" onClick={() => { setEditingPole(p); setShowPoleForm(true); }}>Edit</button>
+                          <button className="btn danger small" onClick={() => deletePole(p.id)}>Delete</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="mobile-only">
+              {filteredPoles.map(p => (
+                <div className="item-card" key={p.id}>
+                  <div className="ic-top">
+                    <div>
+                      <div className="ic-name">{p.poleId} — {p.location}</div>
+                      <div className="ic-meta">{p.cluster} · {p.category}</div>
+                    </div>
+                    <span className={"badge " + statusClass(p.status)}>{p.status}</span>
+                  </div>
+                  <div className="flex" style={{ marginTop: "6px" }}>
+                    <span className={"badge " + condClass(p.condition)}>{p.condition}</span>
+                    <span className={"badge priority-" + p.priority}>P{p.priority}</span>
+                    <span className="small">{formatRand(p.estimatedCost)}</span>
+                  </div>
+                  <div className="flex" style={{ marginTop: "8px" }}>
+                    <button className="btn ghost small" onClick={() => { setEditingPole(p); setShowPoleForm(true); }}>Edit</button>
+                    <button className="btn danger small" onClick={() => deletePole(p.id)}>Delete</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </React.Fragment>
+        )}
+
+        {tab === "phases" && (
+          <React.Fragment>
+            {phases.map(ph => (
+              <div className="phase-card" key={ph.id}>
+                <div className="phase-head">
+                  <div>
+                    <div className="phase-title">{ph.name}</div>
+                    <div className="phase-meta">{ph.weeks}{ph.targetDate ? " · " + ph.targetDate : ""}</div>
+                  </div>
+                  <select style={{ width: "150px" }} value={ph.status} onChange={e => updatePhase(ph.id, { status: e.target.value })}>
+                    <option>Not Started</option><option>In Progress</option><option>Complete</option>
+                  </select>
+                </div>
+                <div style={{ marginTop: "10px" }}>
+                  {ph.deliverables.map((d, i) => (
+                    <div className={"deliverable-row" + (d.done ? " done" : "")} key={i}>
+                      <input type="checkbox" checked={d.done} onChange={() => toggleDeliverable(ph.id, i)} />
+                      <span>{d.text}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="field" style={{ marginTop: "8px" }}>
+                  <label>Notes</label>
+                  <textarea rows="2" value={ph.notes} onChange={e => updatePhase(ph.id, { notes: e.target.value })} />
+                </div>
+              </div>
+            ))}
+          </React.Fragment>
+        )}
+
+        {tab === "priority" && (
+          <React.Fragment>
+            {PRIORITIES.map(p => {
+              const row = metrics.priorityProgress.find(x => x.priority === p);
+              return (
+                <div className="card" key={p}>
+                  <h2>{PRIORITY_LABEL[p]}</h2>
+                  <p className="small">Example locations from the Action Plan: {PRIORITY_EXAMPLES[p]}</p>
+                  <div className="bar-row">
+                    <div>Refurbished</div>
+                    <div className="bar-track"><div className="bar-fill good" style={{ width: (row && row.total ? (row.done / row.total) * 100 : 0) + "%" }}></div></div>
+                    <div className="small">{row ? row.done : 0} / {row ? row.total : 0}</div>
+                  </div>
+                </div>
+              );
+            })}
+            <div className="card">
+              <h2>Cluster Targets (Zutari Conditional Report, June 2025)</h2>
+              <p className="small">Reference totals for the whole network — Phase 1's job is to confirm these against the real GIS-based register. Edit targets in Settings if a more accurate count comes back from the assessment.</p>
+              <table>
+                <thead><tr><th>Cluster</th><th>Logged</th><th>Target</th><th>Coverage</th></tr></thead>
+                <tbody>
+                  {metrics.clusterCoverage.map(c => (
+                    <tr key={c.cluster}>
+                      <td>{c.cluster}</td><td>{c.entered}</td><td>{c.low}{c.high ? "–" + c.high : "+"}</td><td>{c.pct}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </React.Fragment>
+        )}
+
+        {tab === "resource" && (
+          <React.Fragment>
+            <div className="card">
+              <h2>Delivery Model</h2>
+              <p className="small">Funding constraints should be addressed through collaboration with RIM (as flagged in the Action Plan). Three delivery models are on the table:</p>
+              <div className="grid cols-3">
+                <div className={"model-card" + (resource.chosenModel === "Option A" ? " chosen" : "")}>
+                  <h4>Option A — Internal Resources</h4>
+                  <ul><li>FM Contractor teams</li><li>Existing term contracts</li></ul>
+                </div>
+                <div className={"model-card" + (resource.chosenModel === "Option B" ? " chosen" : "")}>
+                  <h4>Option B — Hybrid Model</h4>
+                  <ul><li>Internal preparation</li><li>External contractor painting</li></ul>
+                  <p className="small" style={{ marginTop: "6px" }}>The plan itself flags this as usually the fastest — a recommendation, not yet a confirmed decision.</p>
+                </div>
+                <div className={"model-card" + (resource.chosenModel === "Option C" ? " chosen" : "")}>
+                  <h4>Option C — Area-Based Contract</h4>
+                  <ul><li>Cluster poles geographically</li><li>Appoint contractors per region</li></ul>
+                </div>
+              </div>
+              <div className="field" style={{ marginTop: "12px" }}>
+                <label>Chosen Model</label>
+                <select value={resource.chosenModel} onChange={e => setResource(prev => ({ ...prev, chosenModel: e.target.value }))}>
+                  <option value="">Not yet decided</option>
+                  <option>Option A</option><option>Option B</option><option>Option C</option>
+                </select>
+              </div>
+            </div>
+            <div className="card">
+              <h2>Budget</h2>
+              <div className="grid cols-2">
+                <div className="field"><label>Budget Allocated (R)</label><input type="number" value={resource.budgetAllocated} onChange={e => setResource(prev => ({ ...prev, budgetAllocated: Number(e.target.value) || 0 }))} /></div>
+                <div className="field"><label>Budget Spent (R)</label><input type="number" value={resource.budgetSpent} onChange={e => setResource(prev => ({ ...prev, budgetSpent: Number(e.target.value) || 0 }))} /></div>
+              </div>
+              <div className="bar-row">
+                <div>Spent</div>
+                <div className="bar-track"><div className={"bar-fill" + (metrics.budgetPct >= 90 ? " over" : "")} style={{ width: Math.min(100, metrics.budgetPct) + "%" }}></div></div>
+                <div className="small">{metrics.budgetPct}%</div>
+              </div>
+              <p className="small">Total estimated cost from register entries logged so far: {formatRand(metrics.totalEstimatedCostRegister)} (a cross-check, not necessarily the same as actual spend).</p>
+            </div>
+            <div className="card">
+              <h2>Contractor &amp; Resourcing Notes</h2>
+              <div className="field"><textarea rows="2" value={resource.contractorNotes} onChange={e => setResource(prev => ({ ...prev, contractorNotes: e.target.value }))} /></div>
+              <label>General Resource Notes</label>
+              <div className="field"><textarea rows="2" value={resource.resourceNotes} onChange={e => setResource(prev => ({ ...prev, resourceNotes: e.target.value }))} /></div>
+            </div>
+          </React.Fragment>
+        )}
+
+        {tab === "import" && (
+          <React.Fragment>
+            <div className="card">
+              <h2>Import Poles from Excel</h2>
+              <p className="small">Upload an Excel (.xlsx) file with columns: PoleID, Location, Cluster, Category, Condition, Priority, EstimatedCost, Status, DateAssessed, Notes</p>
+              <div className="flex">
+                <button className="btn ghost" onClick={() => excelFileInputRef.current.click()}>Upload Excel file</button>
+                <input type="file" accept=".xlsx,.xls" ref={excelFileInputRef} style={{ display: "none" }} onChange={importExcelFile} />
+              </div>
+            </div>
+            <div className="card">
+              <h2>Import Poles from CSV</h2>
+              <div className="flex">
+                <button className="btn ghost" onClick={downloadCSVTemplate}>Download CSV template</button>
+                <button className="btn ghost" onClick={() => csvFileInputRef.current.click()}>Upload CSV file</button>
+                <input type="file" accept=".csv" ref={csvFileInputRef} style={{ display: "none" }} onChange={importCSVFile} />
+              </div>
+              <div className="field" style={{ marginTop: "10px" }}>
+                <label>Or paste CSV rows</label>
+                <textarea rows="4" value={csvPasteText} onChange={e => setCsvPasteText(e.target.value)} placeholder="PoleID,Location,Cluster,Category,Condition,Priority,EstimatedCost,Status,DateAssessed,Notes" />
+              </div>
+              <button className="btn gold" disabled={!csvPasteText.trim()} onClick={importPasteCSV}>Import Pasted Rows</button>
+              <p className="small" style={{ marginTop: "8px" }}>A real import automatically clears the placeholder example poles.</p>
+            </div>
+            <div className="card">
+              <h2>Export</h2>
+              <div className="flex">
+                <button className="btn" onClick={exportPolesCSV}>Export Asset Register CSV</button>
+              </div>
+              <div className="flex" style={{ marginTop: "8px" }}>
+                <button className="btn ghost" onClick={exportJSONBackup}>Download full backup (JSON)</button>
+                <button className="btn ghost" onClick={() => jsonInputRef.current.click()}>Restore from backup (JSON)</button>
+                <input type="file" accept="application/json" ref={jsonInputRef} style={{ display: "none" }} onChange={importJSONBackup} />
+              </div>
+              <p className="small" style={{ marginTop: "8px" }}>Data lives only in this browser's local storage. Download a JSON backup periodically — clearing browser data or switching computers will lose everything otherwise.</p>
+            </div>
+          </React.Fragment>
+        )}
+
+        {tab === "settings" && (
+          <React.Fragment>
+            <div className="unconfirmed-note">
+              <b>Not yet confirmed with Neil:</b> the cluster target counts below come straight from the Zutari Conditional Report (June 2025) quoted in the Action Plan — Phase 1's own job is to verify them against a real GIS-based register. Treat these as a starting reference, not a final number.
+            </div>
+            <div className="card">
+              <h2>Cluster Targets</h2>
+              <p className="small">Used for the Cluster Coverage panel on the Dashboard and Priority &amp; Clusters tab.</p>
+              {clusterTargets.map((t, i) => (
+                <div className="grid cols-3" key={t.cluster} style={{ marginBottom: "6px" }}>
+                  <div className="field"><label>Cluster</label><input type="text" value={t.cluster} disabled /></div>
+                  <div className="field"><label>Low target</label><input type="number" value={t.low} onChange={e => updateClusterTarget(i, { low: Number(e.target.value) || 0 })} /></div>
+                  <div className="field"><label>High target (blank = "+")</label><input type="number" value={t.high === null ? "" : t.high} onChange={e => updateClusterTarget(i, { high: e.target.value === "" ? null : Number(e.target.value) })} /></div>
+                </div>
+              ))}
+            </div>
+            <div className="card">
+              <h2>AI Executive Summary — Style Notes</h2>
+              <p className="small">Optional free-text notes applied to every generated executive summary (e.g. preferred sign-off, tone).</p>
+              <div className="field"><textarea rows="2" value={summaryNotes} onChange={e => setSummaryNotes(e.target.value)} /></div>
+            </div>
+            <div className="card">
+              <h2>Anthropic API (for Executive Summary Generation)</h2>
+              <div className="field">
+                <label>API Key</label>
+                <input type="password" value={apiKey} onChange={e => setApiKey(sanitizeApiKey(e.target.value))} placeholder="sk-ant-..." />
+                <p className="small">Pasted keys are cleaned automatically (stray spaces or invisible characters from copy/paste are stripped).</p>
+              </div>
+              <div className="field">
+                <label>Model</label>
+                <input type="text" value={model} onChange={e => setModel(e.target.value)} />
+                <p className="small">Default is claude-sonnet-5. Update this if Anthropic renames or retires the model.</p>
+              </div>
+              <p className="small">Your key is stored only in this browser's local storage and sent directly to Anthropic's API — never through any other server, and never read from any .env file (this is a static HTML file with no server or build step).</p>
+            </div>
+          </React.Fragment>
+        )}
+
+        <p className="footer-note">Neil Arendse Toolkit — Totem Pole Refurbishment Tracker v1 · Data stored locally in this browser only.</p>
+      </main>
+      {showExcelPreview && (
+        <div className="modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) cancelExcelImport(); }}>
+          <div className="modal wide">
+            <button className="close-x" onClick={cancelExcelImport}>✕</button>
+            <h3>Review Excel Poles</h3>
+            <p className="small">{excelPreviewRows.length} pole{excelPreviewRows.length === 1 ? "" : "s"} found. Review below before importing.</p>
+            <div style={{ maxHeight: "400px", overflowY: "auto", marginBottom: "12px" }}>
+              <table style={{ fontSize: "12px" }}>
+                <thead>
+                  <tr>
+                    <th>Pole ID</th><th>Location</th><th>Cluster</th><th>Category</th><th>Condition</th><th>Priority</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {excelPreviewRows.map((r, i) => (
+                    <tr key={i}>
+                      <td>{r.poleid || r.poleId || ""}</td>
+                      <td>{r.location || ""}</td>
+                      <td>{r.cluster || ""}</td>
+                      <td>{r.category || ""}</td>
+                      <td>{r.condition || ""}</td>
+                      <td>{r.priority || ""}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex" style={{ justifyContent: "flex-end", gap: "8px" }}>
+              <button className="btn ghost" onClick={cancelExcelImport}>Cancel</button>
+              <button className="btn gold" onClick={confirmExcelImport}>Import {excelPreviewRows.length} Pole{excelPreviewRows.length === 1 ? "" : "s"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showPoleForm && (
+        <PoleForm
+          initial={editingPole}
+          onSave={savePole}
+          onCancel={() => { setShowPoleForm(false); setEditingPole(null); }}
+        />
+      )}
+      <PhotoLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />
+    </React.Fragment>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+<script>
+  // See CLAUDE.md CRITICAL LESSON for why this manual-transform pattern is used
+  // instead of the automatic <script type="text/babel"> scan: babel-standalone's
+  // default JSX runtime is "automatic", which injects an ES module import that
+  // cannot execute in a plain script tag and silently fails to mount the app
+  // (blank page, no visible error).
+  (function () {
+    var src = document.getElementById("app-source").textContent;
+    try {
+      var out = Babel.transform(src, { presets: [["react", { runtime: "classic" }]] }).code;
+      new Function(out)();
+    } catch (e) {
+      document.getElementById("root").innerHTML =
+        '<div style="padding:24px;font-family:sans-serif;color:#B0413E;">' +
+        '<h2>This tool failed to start</h2><p>' + (e && e.message ? e.message : e) +
+        '</p><p style="color:#5B6B7A;font-size:13px;">Send this message to Matthew — it means something changed in how the browser runs this file.</p></div>';
+    }
+  })();
+</script>
+</body>
+</html>

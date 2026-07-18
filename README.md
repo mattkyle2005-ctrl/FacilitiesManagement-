@@ -6,10 +6,12 @@ Standalone, single-file, browser-based tools for the **Public Transportation Fac
 |---|---|---|
 | **115 Facilities Monitoring Dashboard** | [`index.html`](./index.html) | Day-to-day operational tracking: inspections, work orders, preventative maintenance, contractor performance, QR deep-links. |
 | **Complaint Manager & AI Response Drafter** | [`complaints.html`](./complaints.html) | Logging and responding to politician/public complaints, with an AI drafter that adapts to Neil's own writing voice. |
+| **Totem Pole Refurbishment Tracker** | [`totem-poles.html`](./totem-poles.html) | Project dashboard for the City's totem pole refurbishment initiative: asset register, phase roadmap, priority tiers, funding model, and AI executive summary generator. |
 
-Once hosted (see "Enable GitHub Pages" below), both are live at:
+Once hosted (see "Enable GitHub Pages" below), all three are live at:
 - `https://<your-username>.github.io/<repo-name>/` (Dashboard)
 - `https://<your-username>.github.io/<repo-name>/complaints.html` (Complaint Manager)
+- `https://<your-username>.github.io/<repo-name>/totem-poles.html` (Totem Pole Tracker)
 
 ---
 
